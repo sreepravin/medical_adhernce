@@ -272,31 +272,36 @@ Rules:
 - Even if there is only ONE medicine, return it as an array with one element.
 - Return ONLY the JSON array, nothing else."""
 
-            # Retry up to 2 times on rate limit (429) errors
+            # Try multiple models — if one is rate-limited, try another
+            models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']
             response_text = None
-            for attempt in range(2):
+            last_error = None
+            
+            for model_name in models_to_try:
                 try:
+                    print(f"[OCR] Trying model: {model_name}")
                     response = self.gemini_client.models.generate_content(
-                        model='gemini-2.0-flash',
+                        model=model_name,
                         contents=[prompt, image]
                     )
                     response_text = response.text.strip()
+                    print(f"[OCR] ✓ Success with model: {model_name}")
                     break  # Success
-                except Exception as retry_err:
-                    err_str = str(retry_err)
+                except Exception as model_err:
+                    err_str = str(model_err)
+                    last_error = err_str
                     if '429' in err_str or 'RESOURCE_EXHAUSTED' in err_str:
-                        wait = 3  # Fixed short wait
-                        print(f"[OCR] Gemini rate limited (attempt {attempt+1}/2), retrying in {wait}s...")
-                        time.sleep(wait)
+                        print(f"[OCR] {model_name} rate-limited, trying next model...")
+                        continue
                     else:
-                        raise retry_err  # Non-rate-limit error, don't retry
+                        raise model_err  # Non-rate-limit error, don't retry
             
             # Free image from memory after Gemini call
             image = None
             
             if response_text is None:
-                print("[OCR] Gemini failed after 2 retries (rate limited)")
-                raise Exception("Gemini API rate-limited after retries")
+                print(f"[OCR] All Gemini models rate-limited. Last error: {last_error}")
+                raise Exception("All Gemini models are rate-limited. Please wait a few minutes and try again.")
             
             print(f"[OCR] Gemini raw response: {response_text[:800]}")
             
