@@ -126,6 +126,21 @@ class PrescriptionOCR:
             if not api_key:
                 print("[OCR] ⚠ GEMINI_API_KEY not set in environment")
     
+    def _ensure_gemini(self):
+        """Lazy-initialize Gemini if not already done but API key is available."""
+        if self.gemini_available and self.gemini_client:
+            return True
+        api_key = os.environ.get('GEMINI_API_KEY', '')
+        if GEMINI_AVAILABLE and api_key:
+            try:
+                self.gemini_client = genai.Client(api_key=api_key)
+                self.gemini_available = True
+                print("[OCR] ✓ Gemini AI (re)initialized successfully")
+                return True
+            except Exception as e:
+                print(f"[OCR] ⚠ Gemini lazy-init failed: {e}")
+        return False
+
     def _resize_image(self, image, max_dimension=1024):
         """Resize image to prevent OOM on free-tier hosting (512MB RAM)."""
         w, h = image.size
@@ -164,6 +179,7 @@ class PrescriptionOCR:
             print(f"[OCR] Input image: size={image.size}, mode={image.mode}")
             
             # === PRIMARY: Try Gemini AI ===
+            self._ensure_gemini()  # Re-check in case key was set after startup
             if self.gemini_available:
                 print("[OCR] Using Gemini AI for prescription analysis...")
                 try:
