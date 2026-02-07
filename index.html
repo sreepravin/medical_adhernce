@@ -1,0 +1,1987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💊 Pill Pal - Medication Adherence Support</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --light-bg: #f3f4f6;
+            --border-color: #e5e7eb;
+            --text-dark: #1f2937;
+            --text-light: #6b7280;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+            color: var(--text-dark);
+            line-height: 1.6;
+        }
+
+        /* ===== NAVIGATION ===== */
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .navbar-menu {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .navbar-menu a {
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        .navbar-menu a:hover {
+            opacity: 0.8;
+        }
+
+        .btn-logout {
+            background-color: rgba(255,255,255,0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            transition: background-color 0.3s;
+        }
+
+        .btn-logout:hover {
+            background-color: rgba(255,255,255,0.3);
+        }
+
+        /* ===== CONTAINER ===== */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* ===== TABS ===== */
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 1rem;
+            color: var(--text-light);
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            color: var(--primary-color);
+        }
+
+        .tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ===== CARDS ===== */
+        .card {
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+
+        /* ===== FORMS ===== */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.25rem;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        /* ===== BUTTONS ===== */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.25rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #059669;
+        }
+
+        .btn-warning {
+            background-color: var(--warning-color);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background-color: #d97706;
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+
+        /* ===== ALERTS ===== */
+        .alert {
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .alert-success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .alert-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .alert-danger {
+            background-color: #fee2e2;
+            color: #7f1d1d;
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .alert-info {
+            background-color: #dbeafe;
+            color: #0c2d6b;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        /* ===== MEDICATION INFO ===== */
+        .med-info {
+            background-color: #f0f9ff;
+            border-left: 4px solid var(--primary-color);
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .med-info-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .med-info-section {
+            margin-bottom: 0.75rem;
+        }
+
+        .med-info-label {
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .med-info-text {
+            color: var(--text-light);
+            line-height: 1.5;
+        }
+
+        /* ===== DOSE TRACKER ===== */
+        .dose-card {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .dose-info {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .dose-time {
+            font-size: 0.875rem;
+            color: var(--text-light);
+        }
+
+        .dose-medicine {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--text-dark);
+        }
+
+        .dose-dosage {
+            font-size: 0.875rem;
+            color: var(--text-light);
+        }
+
+        .dose-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .status-taken {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-missed {
+            background-color: #fee2e2;
+            color: #7f1d1d;
+        }
+
+        .status-pending {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .dose-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* ===== PROGRESS ===== */
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background-color: var(--border-color);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--success-color);
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-light);
+        }
+
+        /* ===== STATS ===== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-light);
+            margin-top: 0.5rem;
+        }
+
+        /* ===== MODAL ===== */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 200;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+
+        .modal-close {
+            float: right;
+            cursor: pointer;
+            font-size: 1.5rem;
+            color: var(--text-light);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* ===== LOADING ===== */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(37, 99, 235, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ===== HIDDEN ===== */
+        .hidden {
+            display: none;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .navbar {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .navbar-menu {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .tabs {
+                gap: 0.5rem;
+            }
+
+            .tab {
+                padding: 0.75rem 1rem;
+            }
+
+            .dose-card {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .dose-actions {
+                width: 100%;
+            }
+
+            .dose-actions .btn {
+                flex: 1;
+            }
+        }
+
+        /* ===== DISCLAIMER ===== */
+        .disclaimer {
+            background-color: #fef3c7;
+            border-left: 4px solid var(--warning-color);
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 2rem;
+            font-size: 0.875rem;
+            color: #92400e;
+        }
+
+        .disclaimer-title {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        /* ===== LOGIN PAGE ===== */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .login-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-title {
+            font-size: 1.75rem;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 2rem;
+            color: var(--primary-color);
+        }
+
+        .login-subtitle {
+            text-align: center;
+            color: var(--text-light);
+            margin-bottom: 1.5rem;
+        }
+
+        .toggle-form-link {
+            text-align: center;
+            margin-top: 1rem;
+            color: var(--text-light);
+        }
+
+        .toggle-form-link a {
+            color: var(--primary-color);
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .toggle-form-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== LOGIN PAGE ===== -->
+<div id="loginPage" class="login-container">
+    <div class="login-card">
+        <div class="login-title">💊 Pill Pal</div>
+        <div class="login-subtitle">Medication Adherence Support</div>
+
+        <div id="loginForm" class="login-form-section">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="loginUsername" placeholder="Enter your username">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="loginPassword" placeholder="Enter your password">
+            </div>
+            <button class="btn btn-primary btn-block" onclick="handleLogin()">Login</button>
+            <div class="toggle-form-link">
+                Don't have an account? <a onclick="toggleForm()">Register</a>
+            </div>
+        </div>
+
+        <div id="registerForm" class="login-form-section" style="display:none;">
+            <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" id="registerName" placeholder="Enter your full name">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="registerEmail" placeholder="Enter your email">
+            </div>
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="registerUsername" placeholder="Enter a username (min 3 chars)">
+            </div>
+            <div class="form-group">
+                <label>Date of Birth</label>
+                <input type="date" id="registerDOB" placeholder="Select your date of birth">
+            </div>
+            <div class="form-group">
+                <label>Gender</label>
+                <select id="registerGender">
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="registerPassword" placeholder="Enter a password (min 4 chars)">
+            </div>
+            <div class="form-group">
+                <label>Confirm Password</label>
+                <input type="password" id="registerPasswordConfirm" placeholder="Confirm your password">
+            </div>
+            <button class="btn btn-primary btn-block" onclick="handleRegister()">Create Account</button>
+            <div class="toggle-form-link">
+                Already have an account? <a onclick="toggleForm()">Login</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div id="mainApp" style="display:none;">
+    <!-- Navigation -->
+    <div class="navbar">
+        <div class="navbar-brand">💊 Pill Pal</div>
+        <div class="navbar-menu">
+            <a onclick="showTab('dashboard')">Dashboard</a>
+            <a onclick="showTab('prescription')">Prescription</a>
+            <a onclick="showTab('medications')">Medications</a>
+            <a onclick="showTab('tracking')">Tracking</a>
+            <a onclick="showTab('reports')">Reports</a>
+            <a onclick="showTab('medicalinfo')">Medical Info</a>
+            <a class="btn-logout" onclick="handleLogout()">Logout</a>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Disclaimer -->
+        <div class="disclaimer">
+            <div class="disclaimer-title">⚠️ Important Medical Disclaimer</div>
+            This app provides informational support only and does NOT replace professional medical advice. Always consult with your healthcare provider before starting medications or making changes.
+        </div>
+
+        <!-- ===== DASHBOARD TAB ===== -->
+        <div id="dashboard" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="todayDoses">0</div>
+                    <div class="stat-label">Doses Today</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="adherencePercent">0%</div>
+                    <div class="stat-label">Today's Adherence</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="activeRx">0</div>
+                    <div class="stat-label">Active Prescriptions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="weekAdherence">0%</div>
+                    <div class="stat-label">Weekly Adherence</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">📅 Today's Doses</div>
+                <div id="todayDosesContainer">
+                    <p style="text-align: center; color: var(--text-light);">No doses scheduled for today</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">💬 Daily Encouragement</div>
+                <div id="encouragementMessage" style="padding: 1rem; background-color: #f0f9ff; border-radius: 0.25rem;">
+                    Keep up with your medication schedule for better health! 🌟
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">👨‍⚕️ My Healthcare Team</div>
+                <div id="healthcareProvidersContainer">
+                    <p style="text-align: center; color: var(--text-light);">Loading healthcare providers...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== PRESCRIPTION TAB ===== -->
+        <div id="prescription" class="tab-content">
+            <div class="card">
+                <div class="card-header">➕ Add New Prescription</div>
+                
+                <div class="form-group">
+                    <label>How do you want to enter? </label>
+                    <select id="prescriptionMethod" onchange="updatePrescriptionMethod()">
+                        <option value="manual">Manual Entry</option>
+                        <option value="ocr">Upload Image (OCR)</option>
+                    </select>
+                </div>
+
+                <!-- Manual Entry -->
+                <div id="manualEntryForm">
+                    <div class="form-group">
+                        <label>Medicine Name *</label>
+                        <input type="text" id="medicineName" placeholder="e.g., Metformin" onchange="autoFillMedicineInfo()">
+                        <small id="medicineHint" style="color: var(--primary); display: none;"></small>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Dosage *</label>
+                            <input type="number" id="dosage" placeholder="500">
+                        </div>
+                        <div class="form-group">
+                            <label>Unit *</label>
+                            <select id="dosageUnit">
+                                <option>mg</option>
+                                <option>ml</option>
+                                <option>g</option>
+                                <option>mcg</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Frequency *</label>
+                        <select id="frequency">
+                            <option>Once daily</option>
+                            <option>Twice daily</option>
+                            <option>Three times daily</option>
+                            <option>Every 8 hours</option>
+                            <option>Every 12 hours</option>
+                            <option>At bedtime</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Duration (days) *</label>
+                        <input type="number" id="duration" placeholder="30">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Start Date</label>
+                            <input type="date" id="startDate">
+                        </div>
+                        <div class="form-group">
+                            <label>End Date</label>
+                            <input type="date" id="endDate">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Prescribed By</label>
+                        <input type="text" id="prescribedBy" placeholder="e.g., Dr. Smith">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Instructions</label>
+                        <textarea id="instructions" placeholder="e.g., Take with food" rows="2"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Special Instructions</label>
+                        <textarea id="specialInstructions" placeholder="e.g., Avoid sunlight, Do not crush" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <!-- OCR Upload -->
+                <div id="ocrUploadForm" style="display:none;">
+                    <div class="form-group">
+                        <label>Upload Prescription Image</label>
+                        <input type="file" id="prescriptionImage" accept="image/*" onchange="previewImage(this)">
+                        <small style="color: var(--text-light);">📸 Upload a clear photo of your prescription</small>
+                    </div>
+                    <div id="imagePreview" style="display:none; text-align:center; margin: 10px 0;">
+                        <img id="previewImg" style="max-width:100%; max-height:300px; border-radius:8px; border:2px solid var(--border);">
+                    </div>
+                    <div id="ocrResultBox" style="display:none; background: var(--bg-light); padding: 15px; border-radius: 8px; margin: 10px 0;">
+                        <div style="font-weight: bold; margin-bottom: 10px;">📋 Extracted Prescription Data:</div>
+                        <div id="ocrResultContent"></div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="handleAddPrescription()">Add Prescription</button>
+            </div>
+
+            <div class="card">
+                <div class="card-header">📋 Your Prescriptions</div>
+                <div id="prescriptionsList">
+                    <p style="text-align: center; color: var(--text-light);">No prescriptions added yet</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== MEDICATIONS TAB ===== -->
+        <div id="medications" class="tab-content">
+            <div class="card">
+                <div class="card-header">💊 Medication Information</div>
+                
+                <div class="form-group">
+                    <label>Search Medication</label>
+                    <input type="text" id="medicationSearch" placeholder="e.g., Metformin, Aspirin">
+                </div>
+
+                <button class="btn btn-primary" onclick="searchMedication()">Search</button>
+
+                <div id="medicationInfo" style="margin-top: 1.5rem;"></div>
+
+                <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
+                    <div class="card-header">Available Medications</div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
+                        <button class="btn btn-secondary" onclick="getMedicationInfo('metformin')">Metformin</button>
+                        <button class="btn btn-secondary" onclick="getMedicationInfo('aspirin')">Aspirin</button>
+                        <button class="btn btn-secondary" onclick="getMedicationInfo('amoxicillin')">Amoxicillin</button>
+                        <button class="btn btn-secondary" onclick="getMedicationInfo('lisinopril')">Lisinopril</button>
+                        <button class="btn btn-secondary" onclick="getMedicationInfo('ibuprofen')">Ibuprofen</button>
+                        <button class="btn btn-secondary" onclick="getMedicationInfo('atorvastatin')">Atorvastatin</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== TRACKING TAB ===== -->
+        <div id="tracking" class="tab-content">
+            <div class="card">
+                <div class="card-header">📊 Dose Tracking</div>
+                
+                <div id="doseTrackingContainer">
+                    <p style="text-align: center; color: var(--text-light);">No doses to track. Add a prescription first!</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">⏰ Upcoming Reminders (Next 24 Hours)</div>
+                <div id="upcomingReminders">
+                    <p style="text-align: center; color: var(--text-light);">Loading reminders...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== REPORTS TAB ===== -->
+        <div id="reports" class="tab-content">
+            <div class="card">
+                <div class="card-header">📈 Adherence Report</div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="reportDosesTaken">0</div>
+                        <div class="stat-label">Doses Taken</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="reportDosesMissed">0</div>
+                        <div class="stat-label">Doses Missed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="reportAdherence">0%</div>
+                        <div class="stat-label">Adherence Rate</div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <label>Weekly Adherence</label>
+                    <div id="weeklyChart" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem;">
+                        <div class="stat-card" style="padding: 1rem;">
+                            <div class="stat-value" style="font-size: 1.5rem;">Mon</div>
+                            <div class="stat-label">-</div>
+                        </div>
+                        <div class="stat-card" style="padding: 1rem;">
+                            <div class="stat-value" style="font-size: 1.5rem;">Tue</div>
+                            <div class="stat-label">-</div>
+                        </div>
+                        <div class="stat-card" style="padding: 1rem;">
+                            <div class="stat-value" style="font-size: 1.5rem;">Wed</div>
+                            <div class="stat-label">-</div>
+                        </div>
+                        <div class="stat-card" style="padding: 1rem;">
+                            <div class="stat-value" style="font-size: 1.5rem;">Thu</div>
+                            <div class="stat-label">-</div>
+                        </div>
+                        <div class="stat-card" style="padding: 1rem;">
+                            <div class="stat-value" style="font-size: 1.5rem;">Fri</div>
+                            <div class="stat-label">-</div>
+                        </div>
+                        <div class="stat-card" style="padding: 1rem;">
+                            <div class="stat-value" style="font-size: 1.5rem;">Sat</div>
+                            <div class="stat-label">-</div>
+                        </div>
+                        <div class="stat-card" style="padding: 1rem;">
+                            <div class="stat-value" style="font-size: 1.5rem;">Sun</div>
+                            <div class="stat-label">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="exportReport()" style="margin-top: 1.5rem;">📥 Export for Doctor</button>
+            </div>
+        </div>
+
+        <!-- ===== MEDICAL INFO TAB ===== -->
+        <div id="medicalinfo" class="tab-content">
+            <div class="card">
+                <div class="card-header">🏥 My Medical Information</div>
+                <div id="currentMedInfoDisplay">
+                    <p style="text-align: center; color: var(--text-light);">Loading medical info...</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">✏️ Update Medical Information</div>
+                <form id="medicalInfoForm" onsubmit="event.preventDefault(); saveMedicalInfo();">
+                    <div class="form-group">
+                        <label for="drugAllergies">💊 Drug Allergies</label>
+                        <textarea id="drugAllergies" rows="2" placeholder="e.g., Penicillin, Sulfa drugs, Aspirin..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="foodAllergies">🥜 Food Allergies</label>
+                        <textarea id="foodAllergies" rows="2" placeholder="e.g., Peanuts, Shellfish, Gluten..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="existingConditions">🩺 Existing Medical Conditions</label>
+                        <textarea id="existingConditions" rows="2" placeholder="e.g., Diabetes, Hypertension, Asthma..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="currentMedications">💉 Current Medications</label>
+                        <textarea id="currentMedications" rows="2" placeholder="e.g., Metformin 500mg, Lisinopril 10mg..."></textarea>
+                    </div>
+                    <div style="display: flex; gap: 2rem; margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="isPregnant"> 🤰 Pregnant
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="isBreastfeeding"> 🤱 Breastfeeding
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="saveMedInfoBtn">💾 Save Medical Info</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODALS ===== -->
+<div id="medInfoModal" class="modal">
+    <div class="modal-content">
+        <span class="modal-close" onclick="closeMedInfoModal()">&times;</span>
+        <div id="medInfoContent"></div>
+    </div>
+</div>
+
+<script>
+    // ===== CONFIG =====
+    const API_BASE = 'http://localhost:5000/api';
+    
+    let currentUser = null;
+    let userMedicalInfo = null;
+
+    // ===== AUTH FUNCTIONS =====
+    function handleLogin() {
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value.trim();
+
+        // Validation
+        if (!username) {
+            alert('❌ Please enter username');
+            return;
+        }
+        if (!password) {
+            alert('❌ Please enter password');
+            return;
+        }
+
+        // Show loading state
+        const btn = event.target;
+        btn.disabled = true;
+        btn.textContent = 'Logging in...';
+
+        // Call login API
+        fetch(`${API_BASE}/users/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.textContent = 'Login';
+
+            if (data.status === 'success') {
+                // Save user to session
+                currentUser = data.data;
+                localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                
+                // Clear form
+                document.getElementById('loginUsername').value = '';
+                document.getElementById('loginPassword').value = '';
+                document.getElementById('loginPassword').focus();
+                
+                alert(`✅ Welcome, ${currentUser.username}!`);
+                showMainApp();
+                populateReminders();
+                loadDashboard();
+            } else {
+                alert(`❌ ${data.message || 'Login failed'}`);
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.textContent = 'Login';
+            console.error('Login error:', err);
+            alert('❌ Login error: ' + err.message);
+        });
+    }
+
+    function handleRegister() {
+        const fullName = document.getElementById('registerName').value.trim();
+        const email = document.getElementById('registerEmail').value.trim();
+        const username = document.getElementById('registerUsername').value.trim();
+        const dob = document.getElementById('registerDOB').value;
+        const gender = document.getElementById('registerGender').value;
+        const password = document.getElementById('registerPassword').value;
+        const passwordConfirm = document.getElementById('registerPasswordConfirm').value;
+
+        // Validation
+        if (!fullName || !email || !username || !password) {
+            alert('❌ Please fill in all required fields');
+            return;
+        }
+
+        if (!dob) {
+            alert('❌ Please select your date of birth');
+            return;
+        }
+
+        if (!gender) {
+            alert('❌ Please select your gender');
+            return;
+        }
+
+        if (username.length < 3) {
+            alert('❌ Username must be at least 3 characters');
+            return;
+        }
+
+        if (password.length < 4) {
+            alert('❌ Password must be at least 4 characters');
+            return;
+        }
+
+        if (password !== passwordConfirm) {
+            alert('❌ Passwords do not match');
+            return;
+        }
+
+        // Email validation
+        if (!email.includes('@') || !email.includes('.')) {
+            alert('❌ Please enter a valid email address');
+            return;
+        }
+
+        // Show loading state
+        const btn = document.querySelector('[onclick="handleRegister()"]');
+        btn.disabled = true;
+        btn.textContent = 'Creating Account...';
+
+        // Call register API
+        fetch(`${API_BASE}/users/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                full_name: fullName,
+                email,
+                username,
+                date_of_birth: dob,
+                gender,
+                password
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.textContent = 'Create Account';
+
+            if (data.status === 'success') {
+                alert(`✅ Account created! Username: ${username}\nNow you can login.`);
+                
+                // Clear form
+                document.getElementById('registerName').value = '';
+                document.getElementById('registerEmail').value = '';
+                document.getElementById('registerUsername').value = '';
+                document.getElementById('registerDOB').value = '';
+                document.getElementById('registerGender').value = '';
+                document.getElementById('registerPassword').value = '';
+                document.getElementById('registerPasswordConfirm').value = '';
+                
+                // Switch to login tab
+                document.getElementById('loginUsername').focus();
+                document.getElementById('loginUsername').value = username;
+            } else {
+                alert(`❌ ${data.message || 'Registration failed'}`);
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.textContent = 'Create Account';
+            console.error('Register error:', err);
+            alert('❌ Registration error: ' + err.message);
+        });
+    }
+
+    function handleLogout() {
+        currentUser = null;
+        localStorage.removeItem('currentUser');
+        document.getElementById('loginPage').style.display = 'flex';
+        document.getElementById('mainApp').style.display = 'none';
+        document.getElementById('loginUsername').value = '';
+        document.getElementById('loginPassword').value = '';
+    }
+
+    function toggleForm() {
+        document.getElementById('loginForm').style.display = 
+            document.getElementById('loginForm').style.display === 'none' ? 'block' : 'none';
+        document.getElementById('registerForm').style.display = 
+            document.getElementById('registerForm').style.display === 'none' ? 'block' : 'none';
+    }
+
+    // ===== UI FUNCTIONS =====
+    function showMainApp() {
+        document.getElementById('loginPage').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'block';
+    }
+
+    function showTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+
+        // Show selected tab
+        document.getElementById(tabName).classList.add('active');
+
+        // Update active button (if using tabs)
+        if (tabName === 'dashboard') loadDashboard();
+        if (tabName === 'prescription') loadPrescriptions();
+        if (tabName === 'tracking') loadTracking();
+        if (tabName === 'reports') loadReports();
+        if (tabName === 'medicalinfo') loadMedicalInfo();
+    }
+
+    function updatePrescriptionMethod() {
+        const method = document.getElementById('prescriptionMethod').value;
+        document.getElementById('manualEntryForm').style.display = method === 'manual' ? 'block' : 'none';
+        document.getElementById('ocrUploadForm').style.display = method === 'ocr' ? 'block' : 'none';
+    }
+
+    // ===== AUTO-FILL INSTRUCTIONS FROM MEDICATION KB =====
+    function autoFillMedicineInfo() {
+        const medicineName = document.getElementById('medicineName').value.trim();
+        const hint = document.getElementById('medicineHint');
+        if (!medicineName) {
+            hint.style.display = 'none';
+            return;
+        }
+
+        fetch(`${API_BASE}/medications/${encodeURIComponent(medicineName)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const med = data.data;
+                // Auto-fill instructions and special instructions
+                document.getElementById('instructions').value = med.instructions || '';
+                document.getElementById('specialInstructions').value = med.special_instructions || '';
+                hint.textContent = `✅ Found: ${med.generic_name || medicineName} — ${med.what_for || ''}`;
+                hint.style.display = 'block';
+                hint.style.color = 'var(--success)';
+            } else {
+                hint.textContent = '⚠️ Medicine not in database — please enter instructions manually';
+                hint.style.display = 'block';
+                hint.style.color = 'var(--warning)';
+            }
+        })
+        .catch(err => {
+            console.error('Auto-fill error:', err);
+            hint.style.display = 'none';
+        });
+    }
+
+    // ===== PRESCRIPTION FUNCTIONS =====
+    function previewImage(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('previewImg').src = e.target.result;
+                document.getElementById('imagePreview').style.display = 'block';
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function handleAddPrescription() {
+        if (!currentUser) {
+            alert('Please login first');
+            return;
+        }
+
+        const method = document.getElementById('prescriptionMethod').value;
+
+        if (method === 'ocr') {
+            handleOCRUpload();
+            return;
+        }
+
+        // Manual entry flow
+
+        const medicineName = document.getElementById('medicineName').value;
+        const dosage = document.getElementById('dosage').value;
+        const dosageUnit = document.getElementById('dosageUnit').value;
+        const frequency = document.getElementById('frequency').value;
+        const duration = document.getElementById('duration').value;
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const prescribedBy = document.getElementById('prescribedBy').value;
+        const instructions = document.getElementById('instructions').value;
+        const specialInstructions = document.getElementById('specialInstructions').value;
+
+        if (!medicineName || !dosage || !frequency || !duration) {
+            alert('❌ Please fill in all required fields (Medicine, Dosage, Frequency, Duration)');
+            return;
+        }
+
+        console.log('Adding prescription for user:', currentUser.id);
+
+        fetch(`${API_BASE}/prescriptions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: currentUser.id,
+                username: currentUser.username,
+                medicine_name: medicineName,
+                dosage: dosage,
+                dosage_unit: dosageUnit,
+                frequency: frequency,
+                duration: parseInt(duration),
+                start_date: startDate || null,
+                end_date: endDate || null,
+                prescribed_by: prescribedBy || null,
+                instructions: instructions || null,
+                special_instructions: specialInstructions || null,
+                is_confirmed: true
+            })
+        })
+        .then(r => {
+            console.log('Response status:', r.status);
+            return r.json();
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            if (data.status === 'success') {
+                alert('✅ Prescription added successfully!');
+                // Clear form
+                document.getElementById('medicineName').value = '';
+                document.getElementById('dosage').value = '';
+                document.getElementById('duration').value = '';
+                document.getElementById('startDate').value = '';
+                document.getElementById('endDate').value = '';
+                document.getElementById('prescribedBy').value = '';
+                document.getElementById('instructions').value = '';
+                document.getElementById('specialInstructions').value = '';
+                
+                // Initialize tracking and reload data
+                console.log('Initializing tracking for user', currentUser.id);
+                fetch(`${API_BASE}/prescriptions/user/${currentUser.id}/init-tracking`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(r => r.json())
+                .then(initData => {
+                    console.log('Init tracking response:', initData);
+                    // Reload all data
+                    loadPrescriptions();
+                    loadDashboard();
+                    loadTracking();
+                    loadReports();
+                })
+                .catch(err => {
+                    console.error('Error initializing tracking:', err);
+                    // Still reload data even if init fails
+                    loadPrescriptions();
+                    loadDashboard();
+                    loadTracking();
+                    loadReports();
+                });
+            } else {
+                alert(`❌ Error: ${data.message || 'Failed to add prescription'}`);
+            }
+        })
+        .catch(err => {
+            console.error('Error adding prescription:', err);
+            alert('❌ Error adding prescription: ' + err.message);
+        });
+    }
+
+    // ===== OCR UPLOAD HANDLER =====
+    function handleOCRUpload() {
+        const fileInput = document.getElementById('prescriptionImage');
+        if (!fileInput.files || !fileInput.files[0]) {
+            alert('❌ Please select a prescription image first');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('image', fileInput.files[0]);
+        formData.append('user_id', currentUser.id);
+        formData.append('username', currentUser.username);
+        formData.append('save_to_db', 'true');
+
+        // Show loading state
+        const resultBox = document.getElementById('ocrResultBox');
+        const resultContent = document.getElementById('ocrResultContent');
+        resultBox.style.display = 'block';
+        resultContent.innerHTML = '<p style="text-align:center;">🔍 Analyzing prescription image... Please wait.</p>';
+
+        fetch(`${API_BASE}/prescriptions/ocr`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            console.log('OCR result:', data);
+            if (data.status === 'success') {
+                const rx = data.data;
+                const confidence = Math.round((rx.ocr_confidence || 0) * 100);
+                const confColor = confidence >= 70 ? 'var(--success)' : confidence >= 50 ? 'var(--warning)' : 'var(--danger)';
+
+                let html = `
+                    <div style="margin-bottom: 8px;"><strong>💊 Medicine:</strong> ${rx.medicine_name || '<em>Not detected</em>'}</div>
+                    <div style="margin-bottom: 8px;"><strong>💉 Dosage:</strong> ${rx.dosage || '?'} ${rx.dosage_unit || 'mg'}</div>
+                    <div style="margin-bottom: 8px;"><strong>⏰ Frequency:</strong> ${rx.frequency || 'Not detected'}</div>
+                    <div style="margin-bottom: 8px;"><strong>📅 Duration:</strong> ${rx.duration || '?'} days</div>
+                    <div style="margin-bottom: 8px;"><strong>🔄 Route:</strong> ${rx.route || 'oral'}</div>
+                    ${rx.instructions ? `<div style="margin-bottom: 8px;"><strong>📝 Instructions:</strong> ${rx.instructions}</div>` : ''}
+                    ${rx.special_instructions ? `<div style="margin-bottom: 8px;"><strong>⚠️ Special:</strong> ${rx.special_instructions}</div>` : ''}
+                    <div style="margin-bottom: 8px;"><strong>🎯 OCR Confidence:</strong> <span style="color: ${confColor}; font-weight: bold;">${confidence}%</span></div>
+                `;
+
+                if (rx.extraction_notes && rx.extraction_notes.length > 0) {
+                    html += `<div style="margin-top: 8px; padding: 8px; background: #fff3cd; border-radius: 4px;">
+                        <strong>⚠️ Notes:</strong><br>${rx.extraction_notes.join('<br>')}
+                    </div>`;
+                }
+
+                if (rx.saved) {
+                    html += `<div style="margin-top: 10px; padding: 8px; background: #d4edda; border-radius: 4px; color: #155724;">
+                        ✅ Prescription saved to database (ID: ${rx.prescription_id})
+                    </div>`;
+                }
+
+                if (rx.raw_text) {
+                    html += `<details style="margin-top: 10px;"><summary style="cursor:pointer; color: var(--text-light);">📄 Raw OCR Text</summary>
+                        <pre style="white-space: pre-wrap; font-size: 0.8em; margin-top: 5px; background: #f8f9fa; padding: 8px; border-radius: 4px;">${rx.raw_text}</pre>
+                    </details>`;
+                }
+
+                resultContent.innerHTML = html;
+
+                if (rx.saved) {
+                    // Reset file input
+                    fileInput.value = '';
+                    document.getElementById('imagePreview').style.display = 'none';
+                    alert('✅ Prescription extracted from image and saved successfully!');
+                    loadPrescriptions();
+                    loadDashboard();
+                }
+            } else {
+                resultContent.innerHTML = `<div style="color: var(--danger);">❌ ${data.message || 'Failed to process image'}</div>`;
+            }
+        })
+        .catch(err => {
+            console.error('OCR error:', err);
+            resultContent.innerHTML = `<div style="color: var(--danger);">❌ Error: ${err.message}</div>`;
+        });
+    }
+
+    // ===== LOAD PRESCRIPTIONS =====
+    function loadPrescriptions() {
+        if (!currentUser) return;
+
+        fetch(`${API_BASE}/prescriptions/user/${currentUser.id}`)
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('prescriptionsList');
+            if (data.status === 'success' && data.data.prescriptions.length > 0) {
+                const rxList = data.data.prescriptions;
+                container.innerHTML = rxList.map(rx => `
+                    <div class="dose-card" style="margin-bottom: 12px; flex-direction: column; align-items: stretch;">
+                        <div class="dose-info">
+                            <div class="dose-medicine">💊 ${rx.medicine_name}</div>
+                            <div class="dose-dosage">${rx.dosage} ${rx.dosage_unit || 'mg'} — ${rx.frequency}</div>
+                            <div class="dose-time">📅 Duration: ${rx.duration} days | Start: ${rx.start_date || 'N/A'} | End: ${rx.end_date || 'N/A'}</div>
+                            ${rx.prescribed_by ? `<div style="color: var(--text-light); font-size: 0.85em; margin-top: 4px;">👨‍⚕️ Prescribed by: ${rx.prescribed_by}</div>` : ''}
+                            ${rx.instructions ? `<div style="color: var(--text-light); font-size: 0.85em; margin-top: 4px;">📝 Instructions: ${rx.instructions}</div>` : ''}
+                            ${rx.special_instructions ? `<div style="color: var(--text-light); font-size: 0.85em; margin-top: 4px;">⚠️ Special: ${rx.special_instructions}</div>` : ''}
+                            ${rx.prescription_image_url ? `<div style="color: var(--text-light); font-size: 0.85em; margin-top: 4px;">🖼️ Image: <a href="${rx.prescription_image_url}" target="_blank">View</a></div>` : ''}
+                        </div>
+                        <div class="dose-status status-${rx.is_confirmed ? 'taken' : 'pending'}">
+                            ${rx.is_confirmed ? 'Confirmed' : 'Pending'}
+                        </div>
+                    </div>
+                `).join('');
+
+                // Update active prescriptions count on dashboard
+                document.getElementById('activeRx').textContent = rxList.length;
+            } else {
+                container.innerHTML = '<p style="text-align: center; color: var(--text-light);">No prescriptions added yet</p>';
+                document.getElementById('activeRx').textContent = '0';
+            }
+        })
+        .catch(err => {
+            console.error('Error loading prescriptions:', err);
+        });
+    }
+
+    // ===== MEDICATION INFO FUNCTIONS =====
+    function searchMedication() {
+        const medicineName = document.getElementById('medicationSearch').value.toLowerCase();
+        if (medicineName) {
+            getMedicationInfo(medicineName);
+        }
+    }
+
+    function getMedicationInfo(medicineName) {
+        fetch(`${API_BASE}/medications/${medicineName}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                displayMedicationInfo(data.data);
+            } else {
+                document.getElementById('medicationInfo').innerHTML = 
+                    `<div class="alert alert-warning">Medication not found. Please check the name.</div>`;
+            }
+        })
+        .catch(err => console.error('Error:', err));
+    }
+
+    function displayMedicationInfo(medData) {
+        let html = `
+            <div class="med-info">
+                <div class="med-info-title">💊 ${medData.medicine_name.toUpperCase()}</div>
+                <div class="med-info-section">
+                    <div class="med-info-label">What is it for?</div>
+                    <div class="med-info-text">${medData.what_for}</div>
+                </div>
+                <div class="med-info-section">
+                    <div class="med-info-label">How does it work?</div>
+                    <div class="med-info-text">${medData.how_works}</div>
+                </div>
+                <div class="med-info-section">
+                    <div class="med-info-label">How to take it</div>
+                    <div class="med-info-text">${medData.how_to_take}</div>
+                </div>
+                <div class="med-info-section">
+                    <div class="med-info-label">With food?</div>
+                    <div class="med-info-text">${medData.with_food}</div>
+                </div>
+                <div class="med-info-section">
+                    <div class="med-info-label">Side effects</div>
+                    <div class="med-info-text">${medData.side_effects}</div>
+                </div>
+            </div>
+        `;
+        document.getElementById('medicationInfo').innerHTML = html;
+    }
+
+    function closeMedInfoModal() {
+        document.getElementById('medInfoModal').classList.remove('active');
+    }
+
+    // ===== MEDICAL INFO FUNCTIONS =====
+    function loadMedicalInfo() {
+        if (!currentUser) return;
+
+        fetch(`${API_BASE}/users/${currentUser.id}/medical-info`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success' && data.data && data.data.id) {
+                userMedicalInfo = data.data;
+
+                // Fill form fields
+                document.getElementById('drugAllergies').value = data.data.drug_allergies || '';
+                document.getElementById('foodAllergies').value = data.data.food_allergies || '';
+                document.getElementById('existingConditions').value = data.data.existing_conditions || '';
+                document.getElementById('currentMedications').value = data.data.current_medications || '';
+                document.getElementById('isPregnant').checked = data.data.is_pregnant || false;
+                document.getElementById('isBreastfeeding').checked = data.data.is_breastfeeding || false;
+
+                // Display current info card
+                const d = data.data;
+                document.getElementById('currentMedInfoDisplay').innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="stat-card" style="text-align:left;padding:1rem;">
+                            <div style="font-weight:600;color:var(--primary);margin-bottom:0.5rem;">💊 Drug Allergies</div>
+                            <div>${d.drug_allergies || '<span style="color:#95a5a6;">None listed</span>'}</div>
+                        </div>
+                        <div class="stat-card" style="text-align:left;padding:1rem;">
+                            <div style="font-weight:600;color:var(--primary);margin-bottom:0.5rem;">🥜 Food Allergies</div>
+                            <div>${d.food_allergies || '<span style="color:#95a5a6;">None listed</span>'}</div>
+                        </div>
+                        <div class="stat-card" style="text-align:left;padding:1rem;">
+                            <div style="font-weight:600;color:var(--primary);margin-bottom:0.5rem;">🩺 Existing Conditions</div>
+                            <div>${d.existing_conditions || '<span style="color:#95a5a6;">None listed</span>'}</div>
+                        </div>
+                        <div class="stat-card" style="text-align:left;padding:1rem;">
+                            <div style="font-weight:600;color:var(--primary);margin-bottom:0.5rem;">💉 Current Medications</div>
+                            <div>${d.current_medications || '<span style="color:#95a5a6;">None listed</span>'}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:1rem;display:flex;gap:1.5rem;">
+                        <span style="padding:4px 12px;border-radius:20px;font-size:0.85em;
+                            background:${d.is_pregnant ? '#e74c3c' : '#ecf0f1'};color:${d.is_pregnant ? '#fff' : '#7f8c8d'};">
+                            🤰 Pregnant: ${d.is_pregnant ? 'Yes' : 'No'}
+                        </span>
+                        <span style="padding:4px 12px;border-radius:20px;font-size:0.85em;
+                            background:${d.is_breastfeeding ? '#e74c3c' : '#ecf0f1'};color:${d.is_breastfeeding ? '#fff' : '#7f8c8d'};">
+                            🤱 Breastfeeding: ${d.is_breastfeeding ? 'Yes' : 'No'}
+                        </span>
+                    </div>
+                `;
+            } else {
+                document.getElementById('currentMedInfoDisplay').innerHTML =
+                    '<p style="text-align:center;color:var(--text-light);padding:1rem;">No medical info on file. Fill the form below to add your details.</p>';
+            }
+        })
+        .catch(err => {
+            console.error('Error loading medical info:', err);
+            document.getElementById('currentMedInfoDisplay').innerHTML =
+                '<p style="text-align:center;color:#e74c3c;">Error loading medical info</p>';
+        });
+    }
+
+    function saveMedicalInfo() {
+        if (!currentUser) return;
+
+        const btn = document.getElementById('saveMedInfoBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Saving...';
+
+        const payload = {
+            drug_allergies: document.getElementById('drugAllergies').value.trim(),
+            food_allergies: document.getElementById('foodAllergies').value.trim(),
+            existing_conditions: document.getElementById('existingConditions').value.trim(),
+            current_medications: document.getElementById('currentMedications').value.trim(),
+            is_pregnant: document.getElementById('isPregnant').checked,
+            is_breastfeeding: document.getElementById('isBreastfeeding').checked
+        };
+
+        fetch(`${API_BASE}/users/${currentUser.id}/medical-info`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.textContent = '💾 Save Medical Info';
+
+            if (data.status === 'success') {
+                alert('✅ Medical information saved successfully!');
+                loadMedicalInfo();
+            } else {
+                alert('❌ ' + (data.message || 'Error saving medical info'));
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.textContent = '💾 Save Medical Info';
+            console.error('Error saving medical info:', err);
+            alert('❌ Error saving medical info. Check console.');
+        });
+    }
+
+    // ===== DASHBOARD FUNCTIONS =====
+    function loadDashboard() {
+        if (!currentUser) return;
+
+        // Get prescription count for dashboard
+        fetch(`${API_BASE}/prescriptions/user/${currentUser.id}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                document.getElementById('activeRx').textContent = data.data.total || 0;
+            }
+        })
+        .catch(err => console.error('Error loading rx count:', err));
+
+        // Initialize dose tracking for prescriptions that don't have it yet
+        fetch(`${API_BASE}/prescriptions/user/${currentUser.id}/init-tracking`, { method: 'POST' })
+        .then(r => r.json())
+        .then(initData => {
+            if (initData.data && initData.data.initialized > 0) {
+                console.log(`Initialized tracking for ${initData.data.initialized} prescriptions`);
+            }
+            // Now load today's doses (after tracking is initialized)
+            loadTodayDoses();
+        })
+        .catch(err => {
+            console.error('Init tracking error:', err);
+            loadTodayDoses();
+        });
+
+        // Get adherence summary
+        fetch(`${API_BASE}/adherence-summary/${currentUser.id}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const summary = data.data.today;
+                const adherence = Math.round(summary.adherence_percentage);
+                document.getElementById('adherencePercent').textContent = adherence + '%';
+                document.getElementById('encouragementMessage').textContent = data.data.encouragement;
+                
+                // Calculate weekly adherence
+                const weekly = data.data.weekly_summary;
+                if (weekly && weekly.length > 0) {
+                    let totalTaken = 0, totalDoses = 0;
+                    weekly.forEach(d => { totalTaken += d.doses_taken; totalDoses += d.total_doses; });
+                    const weekPct = totalDoses > 0 ? Math.round(totalTaken / totalDoses * 100) : 0;
+                    document.getElementById('weekAdherence').textContent = weekPct + '%';
+                } else {
+                    document.getElementById('weekAdherence').textContent = '0%';
+                }
+            }
+        })
+        .catch(err => console.error('Error loading summary:', err));
+
+        // Load healthcare providers
+        loadHealthcareProviders();
+    }
+
+    function loadHealthcareProviders() {
+        if (!currentUser) return;
+        fetch(`${API_BASE}/healthcare-providers/${currentUser.id}`)
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('healthcareProvidersContainer');
+            if (data.status === 'success' && data.data && data.data.length > 0) {
+                let html = '';
+                data.data.forEach(provider => {
+                    html += `
+                    <div class="provider-card" style="background-color: #f8f9fa; padding: 1rem; margin-bottom: 0.75rem; border-radius: 0.5rem; border-left: 4px solid var(--primary);">
+                        <div style="font-weight: 600; color: var(--text-dark);">${provider.provider_name}</div>
+                        <div style="color: var(--text-light); font-size: 0.9rem;">📋 ${provider.provider_type}</div>
+                        ${provider.specialization ? `<div style="color: var(--text-light); font-size: 0.85rem;">🏥 ${provider.specialization}</div>` : ''}
+                        <div style="color: #d97706; margin-top: 0.5rem;">
+                            ${provider.contact_email ? `📧 <a href="mailto:${provider.contact_email}" style="color: var(--primary);">${provider.contact_email}</a><br>` : ''}
+                            ${provider.contact_phone ? `📞 <a href="tel:${provider.contact_phone}" style="color: var(--primary);">${provider.contact_phone}</a>` : ''}
+                        </div>
+                    </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = '<p style="text-align: center; color: var(--text-light);">No healthcare providers added yet. Contact your doctor to set them up.</p>';
+            }
+        })
+        .catch(err => {
+            console.error('Error loading providers:', err);
+            document.getElementById('healthcareProvidersContainer').innerHTML = '<p style="text-align: center; color: #ef4444;">Error loading healthcare providers</p>';
+        });
+    }
+
+    function loadTodayDoses() {
+        if (!currentUser) return;
+
+        fetch(`${API_BASE}/reminders/upcoming/${currentUser.id}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success' && data.data.upcoming_reminders) {
+                const reminders = data.data.upcoming_reminders;
+                let html = '';
+
+                if (reminders.length > 0) {
+                    html = reminders.map(r => {
+                        const time = new Date(r.scheduled_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        const reminderTime = r.reminder_time ? new Date(r.reminder_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+                        const methodIcon = r.reminder_method === 'sms' ? '📱' : r.reminder_method === 'email' ? '📧' : '🔔';
+                        const sentBadge = r.is_sent ? '<span style="color:#27ae60;font-size:0.8em;">✓ Sent</span>' : '<span style="color:#e67e22;font-size:0.8em;">⏳ Pending</span>';
+                        return `
+                        <div class="dose-card">
+                            <div class="dose-info">
+                                <div class="dose-medicine">${r.medicine_name}</div>
+                                <div class="dose-dosage">${r.dosage}</div>
+                                <div class="dose-time">⏰ ${time}</div>
+                                <div class="reminder-info" style="font-size:0.85em;color:#7f8c8d;margin-top:4px;">
+                                    ${methodIcon} ${r.reminder_text || 'Reminder'} ${reminderTime ? '(at ' + reminderTime + ')' : ''} ${sentBadge}
+                                </div>
+                            </div>
+                            <div class="dose-status status-${r.status}">${r.status}</div>
+                            ${r.status === 'pending' ? `<button class="btn btn-success btn-sm" onclick="markDoseTaken(${r.dose_id})">✓ Taken</button>` : ''}
+                        </div>`;
+                    }).join('');
+                }
+
+                document.getElementById('todayDosesContainer').innerHTML = html ||
+                    '<p style="text-align: center; color: var(--text-light);">No doses scheduled for today</p>';
+                document.getElementById('todayDoses').textContent = reminders.length;
+            }
+        })
+        .catch(err => console.error('Error loading reminders:', err));
+    }
+
+    function loadTracking() {
+        if (!currentUser) return;
+
+        fetch(`${API_BASE}/reminders/upcoming/${currentUser.id}`)
+        .then(r => r.json())
+        .then(data => {
+            let doseHtml = '';
+            let reminderHtml = '';
+            if (data.data.upcoming_reminders && data.data.upcoming_reminders.length > 0) {
+                doseHtml = data.data.upcoming_reminders.map(r => `
+                    <div class="dose-card">
+                        <div class="dose-info">
+                            <div class="dose-medicine">${r.medicine_name}</div>
+                            <div class="dose-dosage">${r.dosage}</div>
+                            <div class="dose-time">⏰ ${r.scheduled_time}</div>
+                        </div>
+                        <div class="dose-status status-${r.status}">${r.status}</div>
+                        <div class="dose-actions">
+                            ${r.status === 'pending' ? `
+                                <button class="btn btn-success btn-sm" onclick="markDoseTaken(${r.dose_id})">✓ Taken</button>
+                                <button class="btn btn-warning btn-sm" onclick="markDoseMissed(${r.dose_id})">✗ Missed</button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('');
+
+                // Upcoming reminders section — show reminder-specific data
+                reminderHtml = data.data.upcoming_reminders.map(r => {
+                    const reminderTime = r.reminder_time ? new Date(r.reminder_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+                    const doseTime = new Date(r.scheduled_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    const methodIcon = r.reminder_method === 'sms' ? '📱' : r.reminder_method === 'email' ? '📧' : '🔔';
+                    const sentBadge = r.is_sent
+                        ? '<span style="background:#27ae60;color:#fff;padding:2px 8px;border-radius:12px;font-size:0.75em;">Sent</span>'
+                        : '<span style="background:#e67e22;color:#fff;padding:2px 8px;border-radius:12px;font-size:0.75em;">Pending</span>';
+                    return `
+                    <div class="dose-card" style="border-left: 3px solid ${r.is_sent ? '#27ae60' : '#e67e22'};">
+                        <div class="dose-info">
+                            <div class="dose-medicine">${methodIcon} ${r.reminder_text || r.medicine_name}</div>
+                            <div class="dose-dosage">${r.dosage}</div>
+                            <div class="dose-time">🔔 Reminder: ${reminderTime || doseTime} → 💊 Dose: ${doseTime}</div>
+                            <div style="margin-top:4px;">${sentBadge} <span style="color:#95a5a6;font-size:0.8em;">via ${r.reminder_method || 'app'}</span></div>
+                        </div>
+                        <div class="dose-status status-${r.status}">${r.status}</div>
+                        ${r.status === 'pending' && r.reminder_id && !r.is_sent ? `
+                            <button class="btn btn-sm" style="background:#3498db;color:#fff;font-size:0.8em;" onclick="markReminderSent(${r.reminder_id})">Mark Sent</button>
+                        ` : ''}
+                    </div>`;
+                }).join('');
+            }
+            const noDataHtml = '<p style="text-align: center; color: var(--text-light);">No doses to track</p>';
+            document.getElementById('doseTrackingContainer').innerHTML = doseHtml || noDataHtml;
+            
+            document.getElementById('upcomingReminders').innerHTML = reminderHtml || 
+                '<p style="text-align: center; color: var(--text-light);">No upcoming reminders for the next 24 hours</p>';
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            document.getElementById('upcomingReminders').innerHTML = 
+                '<p style="text-align: center; color: var(--text-light);">Error loading reminders</p>';
+        });
+    }
+
+    function loadReports() {
+        if (!currentUser) return;
+
+        fetch(`${API_BASE}/adherence-summary/${currentUser.id}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const today = data.data.today;
+                document.getElementById('reportDosesTaken').textContent = today.doses_taken;
+                document.getElementById('reportDosesMissed').textContent = today.doses_missed;
+                document.getElementById('reportAdherence').textContent = 
+                    Math.round(today.adherence_percentage) + '%';
+                
+                // Populate weekly chart
+                const weekly = data.data.weekly_summary;
+                if (weekly && weekly.length > 0) {
+                    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                    let weeklyHtml = '';
+                    
+                    // Build last 7 days or available data
+                    const recentWeek = weekly.slice(-7);
+                    
+                    recentWeek.forEach((dayData, idx) => {
+                        const dayOfWeek = days[idx % 7];
+                        const adherence = dayData.adherence_percentage;
+                        const color = adherence >= 80 ? '#10b981' : adherence >= 50 ? '#f59e0b' : '#ef4444';
+                        
+                        weeklyHtml += `
+                            <div class="stat-card" style="padding: 1rem; border-left: 4px solid ${color};">
+                                <div class="stat-value" style="font-size: 1.5rem; color: ${color};">${adherence.toFixed(0)}%</div>
+                                <div class="stat-label">${dayOfWeek}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-light); margin-top: 0.25rem;">
+                                    ${dayData.doses_taken}/${dayData.total_doses}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    document.getElementById('weeklyChart').innerHTML = weeklyHtml;
+                } else {
+                    document.getElementById('weeklyChart').innerHTML = 
+                        '<p style="text-align: center; color: var(--text-light); grid-column: 1/-1;">No weekly data available yet</p>';
+                }
+            }
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            document.getElementById('reportDosesTaken').textContent = '0';
+            document.getElementById('reportDosesMissed').textContent = '0';
+            document.getElementById('reportAdherence').textContent = '0%';
+        });
+    }
+
+    function markDoseTaken(doseId) {
+        fetch(`${API_BASE}/doses/${doseId}/mark-taken`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: 'Taken by user at ' + new Date().toLocaleTimeString() })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Dose marked as taken! Great job! 💪');
+                loadDashboard();
+                loadTracking();
+            }
+        })
+        .catch(err => console.error('Error:', err));
+    }
+
+    function markDoseMissed(doseId) {
+        const reason = prompt('Reason for missing dose (optional):', 'Forgot to take') || 'User reported as missed';
+        fetch(`${API_BASE}/doses/${doseId}/mark-missed`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: reason })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(data.data.guidance.message);
+                loadDashboard();
+                loadTracking();
+            }
+        })
+        .catch(err => console.error('Error:', err));
+    }
+
+    function markReminderSent(reminderId) {
+        fetch(`${API_BASE}/reminders/${reminderId}/mark-sent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                loadTracking();
+                loadTodayDoses();
+            }
+        })
+        .catch(err => console.error('Error marking reminder sent:', err));
+    }
+
+    function populateReminders() {
+        if (!currentUser) return;
+        fetch(`${API_BASE}/reminders/populate/${currentUser.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                console.log('Reminders populated:', data.data.reminders_created);
+                loadTracking();
+                loadTodayDoses();
+            }
+        })
+        .catch(err => console.error('Error populating reminders:', err));
+    }
+
+    function exportReport() {
+        if (!currentUser) return;
+        
+        // Show loading state
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = '📧 Sending...';
+        btn.disabled = true;
+        
+        // Collect report data
+        const reportData = {
+            user_id: currentUser.id,
+            username: currentUser.username,
+            email: currentUser.email || `${currentUser.username}@demo.local`,
+            doses_taken: document.getElementById('reportDosesTaken').textContent || '0',
+            doses_missed: document.getElementById('reportDosesMissed').textContent || '0',
+            adherence_rate: document.getElementById('reportAdherence').textContent || '0%',
+            generated_at: new Date().toLocaleString()
+        };
+        
+        // Send to backend
+        fetch(`${API_BASE}/reports/export`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reportData)
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.textContent = originalText;
+            btn.disabled = false;
+            
+            if (data.status === 'success') {
+                alert(`✅ Report sent to ${reportData.email}!\n\nYou can now share this with your doctor.`);
+            } else {
+                alert(`⚠️ ${data.message || 'Failed to send report'}`);
+            }
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            btn.textContent = originalText;
+            btn.disabled = false;
+            alert('❌ Error sending report. Please try again.');
+        });
+    }
+
+    // ===== INIT =====
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if user is already logged in
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser) {
+            currentUser = JSON.parse(savedUser);
+            showMainApp();
+            populateReminders();
+            loadDashboard();
+            loadPrescriptions();
+        }
+    });
+</script>
+
+</body>
+</html>
