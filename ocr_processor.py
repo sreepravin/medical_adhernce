@@ -272,13 +272,16 @@ Rules:
 - Even if there is only ONE medicine, return it as an array with one element.
 - Return ONLY the JSON array, nothing else."""
 
-            # Try multiple models — if one is rate-limited, try another
+            # Try multiple models — if one is rate-limited, wait and try another
             models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']
             response_text = None
             last_error = None
             
-            for model_name in models_to_try:
+            for i, model_name in enumerate(models_to_try):
                 try:
+                    if i > 0:
+                        print(f"[OCR] Waiting 5s before trying next model...")
+                        time.sleep(5)
                     print(f"[OCR] Trying model: {model_name}")
                     response = self.gemini_client.models.generate_content(
                         model=model_name,
@@ -290,6 +293,7 @@ Rules:
                 except Exception as model_err:
                     err_str = str(model_err)
                     last_error = err_str
+                    print(f"[OCR] {model_name} failed: {err_str[:200]}")
                     if '429' in err_str or 'RESOURCE_EXHAUSTED' in err_str:
                         print(f"[OCR] {model_name} rate-limited, trying next model...")
                         continue

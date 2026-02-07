@@ -386,11 +386,34 @@ def get_medical_info(user_id):
 @app.route('/api/gemini/status', methods=['GET'])
 def gemini_status():
     """Check if Gemini AI is configured and available"""
+    api_key = os.environ.get('GEMINI_API_KEY', '')
     return success_response({
         "gemini_available": ocr.gemini_available,
         "tesseract_available": ocr.tesseract_available,
-        "api_key_set": bool(os.environ.get('GEMINI_API_KEY', '')),
+        "api_key_set": bool(api_key),
+        "api_key_prefix": api_key[:8] + "..." if len(api_key) > 8 else "too_short",
     })
+
+@app.route('/api/gemini/test', methods=['GET'])
+def gemini_test():
+    """Test if Gemini API key actually works with a simple text request"""
+    try:
+        if not ocr.gemini_available:
+            ocr._ensure_gemini()
+        if not ocr.gemini_available:
+            return error_response("Gemini not initialized", "Not Available")
+        
+        response = ocr.gemini_client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=["Say hello in one word"]
+        )
+        return success_response({
+            "working": True,
+            "response": response.text.strip(),
+            "model": "gemini-2.0-flash"
+        }, "Gemini API key is working!")
+    except Exception as e:
+        return error_response(str(e), "Gemini API test failed")
 
 @app.route('/api/gemini/set-key', methods=['POST'])
 def set_gemini_key():
