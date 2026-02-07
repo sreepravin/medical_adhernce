@@ -1281,15 +1281,20 @@
         document.getElementById('extractedMedicinesContainer').style.display = 'none';
         extractedMedicines = [];
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
+
         fetch(`${API_BASE}/prescriptions/ocr`, {
             method: 'POST',
-            body: formData
+            body: formData,
+            signal: controller.signal
         })
         .then(r => {
+            clearTimeout(timeoutId);
             if (!r.ok) {
                 return r.text().then(text => {
                     try { return JSON.parse(text); }
-                    catch(e) { throw new Error(`Server error (${r.status}): ${text.substring(0, 100)}`); }
+                    catch(e) { throw new Error(`Server error (${r.status}). The AI service may be unavailable.`); }
                 });
             }
             return r.json();
@@ -1364,11 +1369,18 @@
             }
         })
         .catch(err => {
+            clearTimeout(timeoutId);
             analyzeBtn.disabled = false;
             analyzeBtn.textContent = '🔍 Analyze Image';
             statusDiv.style.background = '#f8d7da';
             statusDiv.style.color = '#721c24';
-            statusDiv.innerHTML = `❌ Error: ${err.message}. Please fill the form manually.`;
+            let errMsg = err.message;
+            if (err.name === 'AbortError') {
+                errMsg = 'Request timed out. The image may be too large or the AI service is busy. Try a smaller image.';
+            } else if (errMsg.includes('Failed to fetch')) {
+                errMsg = 'Could not reach the server. Please check your connection and try again. If the problem persists, the AI service may not be configured — fill the form manually.';
+            }
+            statusDiv.innerHTML = `❌ ${errMsg}`;
         });
     }
 

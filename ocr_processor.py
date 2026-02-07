@@ -126,6 +126,23 @@ class PrescriptionOCR:
             if not api_key:
                 print("[OCR] ⚠ GEMINI_API_KEY not set in environment")
     
+    def _resize_image(self, image, max_dimension=1600):
+        """Resize image if too large to prevent OOM on free-tier hosting."""
+        w, h = image.size
+        if max(w, h) > max_dimension:
+            ratio = max_dimension / max(w, h)
+            new_size = (int(w * ratio), int(h * ratio))
+            image = image.resize(new_size, Image.LANCZOS)
+            print(f"[OCR] Resized image from {w}x{h} to {new_size[0]}x{new_size[1]}")
+        # Convert RGBA to RGB if needed (JPEG compat)
+        if image.mode == 'RGBA':
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[3])
+            image = background
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+        return image
+
     def extract_from_image(self, image_path_or_bytes):
         """Extract ALL prescription data from image using Gemini AI (primary) or Tesseract (fallback).
         Returns a list of prescription dicts (one per medicine found)."""
@@ -141,6 +158,9 @@ class PrescriptionOCR:
             else:
                 image = Image.open(BytesIO(image_path_or_bytes))
                 image_bytes = image_path_or_bytes
+            
+            # Resize large images to prevent memory issues on deployment
+            image = self._resize_image(image)
             
             print(f"[OCR] Input image: size={image.size}, mode={image.mode}")
             
@@ -163,8 +183,17 @@ class PrescriptionOCR:
                     print("[OCR] Gemini couldn't extract medicines, falling back to Tesseract...")
             
             # === FALLBACK: Tesseract OCR ===
-            tesseract_results = self._extract_with_tesseract(image)
-            return tesseract_results  # Already a list
+            if self.tesseract_available:
+                tesseract_results = self._extract_with_tesseract(image)
+                return tesseract_results  # Already a list
+            
+            # Neither engine available
+            print("[OCR] ⚠ No OCR engine available (Gemini not configured, Tesseract not installed)")
+            return [{
+                "error": "No OCR engine available. Please set GEMINI_API_KEY in environment variables, or fill the form manually.",
+                "ocr_confidence": 0,
+                "requires_manual_confirmation": True
+            }]
         
         except Exception as e:
             import traceback
@@ -221,7 +250,7 @@ Rules:
                 except Exception as retry_err:
                     err_str = str(retry_err)
                     if '429' in err_str or 'RESOURCE_EXHAUSTED' in err_str:
-                        wait = (attempt + 1) * 5  # 5s, 10s, 15s
+                        wait = (attempt + 1) * 2  # 2s, 4s, 6s (shorter for deployment)
                         print(f"[OCR] Gemini rate limited (attempt {attempt+1}/3), retrying in {wait}s...")
                         time.sleep(wait)
                     else:

@@ -49,7 +49,7 @@ def _create_reminder_for_dose(cursor, dose_tracking_id, user_id, scheduled_time,
 # Initialize Flask app
 load_dotenv()
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}})
 
 # Set max upload size to 16 MB
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -435,14 +435,31 @@ def set_gemini_key():
 
 # ===== STEPS 2-3: PRESCRIPTION INPUT & PROCESSING =====
 
-@app.route('/api/prescriptions/ocr', methods=['POST'])
+@app.route('/api/prescriptions/ocr', methods=['POST', 'OPTIONS'])
 def process_prescription_image():
     """Process prescription image via OCR and save ALL medicines to database"""
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response, 200
+    
     try:
         if 'image' not in request.files:
             return error_response("No image provided", "Validation Error", 400)
         
         image_file = request.files['image']
+        
+        # Check file size early (max 10 MB for images)
+        image_file.seek(0, 2)  # Seek to end
+        file_size = image_file.tell()
+        image_file.seek(0)  # Reset
+        if file_size > 10 * 1024 * 1024:
+            return error_response("Image too large. Please use an image under 10 MB.", "Validation Error", 400)
+        if file_size == 0:
+            return error_response("Empty image file", "Validation Error", 400)
         user_id = request.form.get('user_id')
         username = request.form.get('username', f'user_{user_id}')
         save_to_db = request.form.get('save_to_db', 'true').lower() == 'true'
