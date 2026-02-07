@@ -1910,16 +1910,42 @@ def serve_static(filename):
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with detailed diagnostics"""
     try:
+        import psycopg2
+        db_url = os.getenv('DATABASE_URL', '')
+        has_url = bool(db_url)
+        db_host = os.getenv('DB_HOST', 'not set')
+        
         conn = get_db_connection()
         if conn:
+            # Test query to verify tables exist
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")
+            table_count = cursor.fetchone()[0]
+            cursor.close()
             close_db_connection(conn)
-            return success_response({"status": "healthy"})
+            return success_response({
+                "status": "healthy",
+                "database": "connected",
+                "has_database_url": has_url,
+                "tables_found": table_count
+            })
         else:
-            return error_response("Database unavailable", "Service Unavailable", 503)
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed",
+                "has_database_url": has_url,
+                "db_host_fallback": db_host,
+                "hint": "Check DATABASE_URL env var on Render dashboard"
+            }), 503
     except Exception as e:
-        return error_response(str(e), "Service Unavailable", 503)
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "has_database_url": bool(os.getenv('DATABASE_URL', '')),
+            "hint": "Connection error - check DATABASE_URL format"
+        }), 503
 
 # Auto-create database tables on startup
 def init_database():

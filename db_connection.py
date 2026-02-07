@@ -10,6 +10,10 @@ load_dotenv()
 # Database configuration — supports DATABASE_URL (for Render/Railway/Heroku) or individual vars
 DATABASE_URL = os.getenv('DATABASE_URL', '')
 
+# Fix Render's postgres:// to postgresql:// (psycopg2 requires postgresql://)
+if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'port': int(os.getenv('DB_PORT', 5432)),
