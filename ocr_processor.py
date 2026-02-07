@@ -180,12 +180,14 @@ class PrescriptionOCR:
             
             # === PRIMARY: Try Gemini AI ===
             self._ensure_gemini()  # Re-check in case key was set after startup
+            gemini_error = None
             if self.gemini_available:
                 print("[OCR] Using Gemini AI for prescription analysis...")
                 try:
                     results = self._extract_with_gemini(image)
                 except Exception as gemini_err:
                     print(f"[OCR] Gemini exception: {gemini_err}")
+                    gemini_error = str(gemini_err)
                     results = None
                 
                 if results and isinstance(results, list) and len(results) > 0:
@@ -200,7 +202,8 @@ class PrescriptionOCR:
                     print(f"[OCR] ✓ Gemini extracted medicine: {results.get('medicine_name')}")
                     return [results]
                 else:
-                    print("[OCR] Gemini returned no medicines, falling back...")
+                    gemini_error = gemini_error or "Could not read medicines from this image"
+                    print(f"[OCR] Gemini returned no medicines: {gemini_error}")
             else:
                 print(f"[OCR] Gemini not available (gemini_available={self.gemini_available})")
             
@@ -209,10 +212,20 @@ class PrescriptionOCR:
                 tesseract_results = self._extract_with_tesseract(image)
                 return tesseract_results  # Already a list
             
-            # Neither engine available
-            print("[OCR] ⚠ No OCR engine available (Gemini not configured, Tesseract not installed)")
+            # Determine the real error message
+            if self.gemini_available and gemini_error:
+                # Gemini was configured but the API call failed
+                err_msg = f"AI analysis failed: {gemini_error}. Please try again or fill the form manually."
+                if '429' in gemini_error or 'RESOURCE_EXHAUSTED' in gemini_error or 'rate' in gemini_error.lower():
+                    err_msg = "Gemini AI is rate-limited. Please wait a minute and try again, or fill the form manually."
+            elif not self.gemini_available:
+                err_msg = "No OCR engine available. Please set GEMINI_API_KEY in environment variables, or fill the form manually."
+            else:
+                err_msg = "Could not extract medicines from this image. Please try a clearer photo or fill the form manually."
+            
+            print(f"[OCR] ⚠ {err_msg}")
             return [{
-                "error": "No OCR engine available. Please set GEMINI_API_KEY in environment variables, or fill the form manually.",
+                "error": err_msg,
                 "ocr_confidence": 0,
                 "requires_manual_confirmation": True
             }]
@@ -338,7 +351,7 @@ Rules:
             return [result] if result else None
         except Exception as e:
             print(f"[OCR] Gemini error: {e}")
-            return None
+            raise  # Re-raise so caller gets the actual error message
     
     def _parse_gemini_text_fallback(self, text):
         """If Gemini returns non-JSON text, try to extract medicine name from it"""
