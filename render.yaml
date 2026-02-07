@@ -1,0 +1,22 @@
+databases:
+  - name: medication-db
+    plan: free
+    databaseName: medication_adherence
+    user: medication_user
+
+services:
+  - type: web
+    name: medication-adherence-api
+    plan: free
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: medication-db
+          property: connectionString
+      - key: FLASK_DEBUG
+        value: false
+      - key: PYTHON_VERSION
+        value: "3.13"

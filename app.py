@@ -1921,6 +1921,28 @@ def health_check():
     except Exception as e:
         return error_response(str(e), "Service Unavailable", 503)
 
+# Auto-create database tables on startup
+def init_database():
+    """Create tables from schema.sql if they don't exist"""
+    try:
+        conn = get_db_connection()
+        if conn:
+            schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
+            if os.path.exists(schema_path):
+                with open(schema_path, 'r') as f:
+                    cursor = conn.cursor()
+                    cursor.execute(f.read())
+                    conn.commit()
+                    cursor.close()
+                    print("✓ Database tables initialized")
+            close_db_connection(conn)
+    except Exception as e:
+        print(f"Database init note: {e}")
+
+init_database()
+
 # Start the app
 if __name__ == '__main__':
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    port = int(os.getenv('PORT', 5000))
+    debug = os.getenv('FLASK_DEBUG', 'true').lower() == 'true'
+    app.run(debug=debug, port=port, host='0.0.0.0')

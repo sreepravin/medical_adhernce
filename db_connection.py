@@ -7,7 +7,9 @@ import time
 # Load environment variables from .env file
 load_dotenv()
 
-# Database configuration
+# Database configuration — supports DATABASE_URL (for Render/Railway/Heroku) or individual vars
+DATABASE_URL = os.getenv('DATABASE_URL', '')
+
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'port': int(os.getenv('DB_PORT', 5432)),
@@ -23,22 +25,27 @@ RETRY_DELAY = 2
 
 def get_db_connection(retry=True):
     """
-    Create and return a PostgreSQL database connection with retry logic
+    Create and return a PostgreSQL database connection with retry logic.
+    Supports DATABASE_URL (cloud deploy) or individual DB_HOST/DB_PORT/etc (local).
     """
     attempt = 0
     last_error = None
     
     while attempt < RETRY_ATTEMPTS:
         try:
-            connection = psycopg2.connect(
-                host=DB_CONFIG['host'],
-                port=DB_CONFIG['port'],
-                database=DB_CONFIG['database'],
-                user=DB_CONFIG['user'],
-                password=DB_CONFIG['password'],
-                connect_timeout=CONNECTION_TIMEOUT
-            )
-            print(f"✓ Successfully connected to PostgreSQL database at {DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
+            if DATABASE_URL:
+                connection = psycopg2.connect(DATABASE_URL, connect_timeout=CONNECTION_TIMEOUT)
+                print(f"✓ Connected to PostgreSQL via DATABASE_URL")
+            else:
+                connection = psycopg2.connect(
+                    host=DB_CONFIG['host'],
+                    port=DB_CONFIG['port'],
+                    database=DB_CONFIG['database'],
+                    user=DB_CONFIG['user'],
+                    password=DB_CONFIG['password'],
+                    connect_timeout=CONNECTION_TIMEOUT
+                )
+                print(f"✓ Connected to PostgreSQL at {DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
             return connection
         except (psycopg2.OperationalError, psycopg2.Error) as error:
             last_error = error
