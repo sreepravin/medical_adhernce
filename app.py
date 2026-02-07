@@ -404,13 +404,13 @@ def gemini_test():
             return error_response("Gemini not initialized", "Not Available")
         
         response = ocr.gemini_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             contents=["Say hello in one word"]
         )
         return success_response({
             "working": True,
             "response": response.text.strip(),
-            "model": "gemini-2.0-flash"
+            "model": "gemini-2.5-flash"
         }, "Gemini API key is working!")
     except Exception as e:
         return error_response(str(e), "Gemini API test failed")

@@ -273,7 +273,7 @@ Rules:
 - Return ONLY the JSON array, nothing else."""
 
             # Try multiple models — if one is rate-limited, wait and try another
-            models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']
+            models_to_try = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite']
             response_text = None
             last_error = None
             
