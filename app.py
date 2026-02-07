@@ -482,11 +482,17 @@ def process_prescription_image():
         
         # Check if first entry has an error
         if prescription_list[0].get("error"):
+            err_msg = prescription_list[0].get("error", "OCR processing failed")
+            print(f"[OCR API] Returning error to client: {err_msg}")
             prescription_list[0]["requires_manual_confirmation"] = True
             return success_response(
-                {"medicines": prescription_list, "count": len(prescription_list)},
-                "OCR had issues - please review and confirm the extracted data"
+                {"medicines": prescription_list, "count": 0},
+                err_msg
             )
+        
+        # Log successful extraction
+        med_names = [rx.get('medicine_name', '?') for rx in prescription_list]
+        print(f"[OCR API] Extracted {len(prescription_list)} medicines: {', '.join(med_names)}")
         
         # Tag each medicine with user info
         for rx in prescription_list:

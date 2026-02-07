@@ -1311,7 +1311,13 @@
                 if (count === 0 || !medicines[0]?.medicine_name) {
                     statusDiv.style.background = '#fff3cd';
                     statusDiv.style.color = '#664d03';
-                    statusDiv.innerHTML = '⚠️ No medicines detected. Please fill the form manually below.';
+                    // Show actual error from server if available
+                    const errDetail = medicines[0]?.error || data.message || '';
+                    if (errDetail && errDetail !== 'Success') {
+                        statusDiv.innerHTML = `⚠️ ${errDetail}<br><small>Please fill the form manually below.</small>`;
+                    } else {
+                        statusDiv.innerHTML = '⚠️ No medicines detected in the image. Please fill the form manually below.';
+                    }
                     return;
                 }
 

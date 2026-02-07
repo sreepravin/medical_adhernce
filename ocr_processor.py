@@ -166,7 +166,12 @@ class PrescriptionOCR:
             # === PRIMARY: Try Gemini AI ===
             if self.gemini_available:
                 print("[OCR] Using Gemini AI for prescription analysis...")
-                results = self._extract_with_gemini(image)
+                try:
+                    results = self._extract_with_gemini(image)
+                except Exception as gemini_err:
+                    print(f"[OCR] Gemini exception: {gemini_err}")
+                    results = None
+                
                 if results and isinstance(results, list) and len(results) > 0:
                     for r in results:
                         r["ocr_engine"] = "gemini-ai"
@@ -179,7 +184,9 @@ class PrescriptionOCR:
                     print(f"[OCR] ✓ Gemini extracted medicine: {results.get('medicine_name')}")
                     return [results]
                 else:
-                    print("[OCR] Gemini couldn't extract medicines, falling back to Tesseract...")
+                    print("[OCR] Gemini returned no medicines, falling back...")
+            else:
+                print(f"[OCR] Gemini not available (gemini_available={self.gemini_available})")
             
             # === FALLBACK: Tesseract OCR ===
             if self.tesseract_available:
