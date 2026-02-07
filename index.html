@@ -732,14 +732,24 @@
                         <input type="file" id="prescriptionImage" accept="image/*" onchange="handleImageSelected(this)" style="flex:1; min-width: 200px;">
                         <button class="btn btn-primary" onclick="analyzeImage()" id="analyzeBtn" style="white-space:nowrap;">🔍 Analyze Image</button>
                     </div>
-                    <small style="color: #6c757d; margin-top: 6px; display:block;">Upload a prescription photo — AI will auto-fill all fields below</small>
+                    <small style="color: #6c757d; margin-top: 6px; display:block;">Upload a prescription photo — AI will detect <strong>all medicines</strong> and let you add them</small>
                     <div id="imagePreview" style="display:none; text-align:center; margin-top: 10px;">
                         <img id="previewImg" style="max-width:100%; max-height:250px; border-radius:8px; border:2px solid var(--border);">
                     </div>
                     <div id="analysisStatus" style="display:none; margin-top: 10px; padding: 10px; border-radius: 8px;"></div>
                 </div>
 
-                <!-- Prescription Form (manual or auto-filled by AI) -->
+                <!-- AI Extracted Medicines List (shown after analysis) -->
+                <div id="extractedMedicinesContainer" style="display:none; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong style="font-size: 1.05em;">💊 Extracted Medicines</strong>
+                        <button class="btn btn-primary" onclick="addAllExtractedMedicines()" id="addAllBtn" style="font-size: 0.85em; padding: 6px 16px;">✅ Add All Medicines</button>
+                    </div>
+                    <div id="extractedMedicinesList"></div>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid var(--border); margin: 10px 0;">
+                <div style="font-weight: bold; margin-bottom: 10px; color: var(--text-light); font-size: 0.9em;">✏️ Or enter manually:</div>
                 <div id="prescriptionForm">
                     <div class="form-group">
                         <label>Medicine Name *</label>
@@ -1238,6 +1248,9 @@
         handleImageSelected(input);
     }
 
+    // Store extracted medicines globally for "Add All" feature
+    let extractedMedicines = [];
+
     function analyzeImage() {
         if (!currentUser) {
             alert('Please login first');
@@ -1264,6 +1277,10 @@
         analyzeBtn.disabled = true;
         analyzeBtn.textContent = '⏳ Analyzing...';
 
+        // Hide previous results
+        document.getElementById('extractedMedicinesContainer').style.display = 'none';
+        extractedMedicines = [];
+
         fetch(`${API_BASE}/prescriptions/ocr`, {
             method: 'POST',
             body: formData
@@ -1274,90 +1291,63 @@
             analyzeBtn.textContent = '🔍 Analyze Image';
 
             if (data.status === 'success') {
-                const rx = data.data;
-                const engineLabel = rx.ocr_engine === 'gemini-ai' ? '🤖 Gemini AI' : '📝 Tesseract OCR';
-                const confidence = Math.round((rx.ocr_confidence || 0) * 100);
+                const medicines = data.data.medicines || [];
+                const count = data.data.count || medicines.length;
+                const engineLabel = medicines[0]?.ocr_engine === 'gemini-ai' ? '🤖 Gemini AI' : '📝 Tesseract OCR';
 
-                // Auto-fill form fields
-                if (rx.medicine_name) document.getElementById('medicineName').value = rx.medicine_name;
-                if (rx.dosage) document.getElementById('dosage').value = rx.dosage;
-                if (rx.dosage_unit) {
-                    const unitSelect = document.getElementById('dosageUnit');
-                    for (let i = 0; i < unitSelect.options.length; i++) {
-                        if (unitSelect.options[i].value.toLowerCase() === rx.dosage_unit.toLowerCase()) {
-                            unitSelect.selectedIndex = i;
-                            break;
-                        }
-                    }
+                if (count === 0 || !medicines[0]?.medicine_name) {
+                    statusDiv.style.background = '#fff3cd';
+                    statusDiv.style.color = '#664d03';
+                    statusDiv.innerHTML = '⚠️ No medicines detected. Please fill the form manually below.';
+                    return;
                 }
-                if (rx.frequency) {
-                    const freqSelect = document.getElementById('frequency');
-                    let matched = false;
-                    for (let i = 0; i < freqSelect.options.length; i++) {
-                        if (freqSelect.options[i].value.toLowerCase() === rx.frequency.toLowerCase()) {
-                            freqSelect.selectedIndex = i;
-                            matched = true;
-                            break;
-                        }
-                    }
-                    if (!matched && rx.frequency) {
-                        // Add as new option if not in list
-                        const opt = document.createElement('option');
-                        opt.value = rx.frequency;
-                        opt.textContent = rx.frequency;
-                        opt.selected = true;
-                        freqSelect.appendChild(opt);
-                    }
-                }
-                if (rx.duration) document.getElementById('duration').value = rx.duration;
-                if (rx.route) {
-                    const routeSelect = document.getElementById('route');
-                    for (let i = 0; i < routeSelect.options.length; i++) {
-                        if (routeSelect.options[i].value.toLowerCase() === rx.route.toLowerCase()) {
-                            routeSelect.selectedIndex = i;
-                            break;
-                        }
-                    }
-                }
-                if (rx.instructions) document.getElementById('instructions').value = rx.instructions;
-                if (rx.special_instructions) document.getElementById('specialInstructions').value = rx.special_instructions;
-
-                // Set today's start date
-                const today = new Date().toISOString().split('T')[0];
-                document.getElementById('startDate').value = today;
-                if (rx.duration) {
-                    const endDate = new Date();
-                    endDate.setDate(endDate.getDate() + parseInt(rx.duration));
-                    document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
-                }
-
-                // Trigger auto-fill for medication KB
-                autoFillMedicineInfo();
 
                 // Show success status
-                let statusHtml = `<strong>✅ Image analyzed successfully!</strong> (${engineLabel}, ${confidence}% confidence)<br>`;
-                statusHtml += `<span style="font-size:0.9em;">Medicine: <strong>${rx.medicine_name || 'Not detected'}</strong>`;
-                if (rx.dosage) statusHtml += ` | ${rx.dosage} ${rx.dosage_unit || 'mg'}`;
-                if (rx.frequency) statusHtml += ` | ${rx.frequency}`;
-                statusHtml += `</span>`;
-
-                if (rx.extraction_notes && rx.extraction_notes.length > 0) {
-                    statusHtml += `<br><span style="font-size:0.85em; color: #856404;">⚠️ ${rx.extraction_notes.join(' | ')}</span>`;
-                }
-                statusHtml += `<br><span style="font-size:0.85em; color: #155724;">📝 Review the form below and click "Add Prescription" to save.</span>`;
-
                 statusDiv.style.background = '#d4edda';
                 statusDiv.style.color = '#155724';
-                statusDiv.innerHTML = statusHtml;
+                statusDiv.innerHTML = `<strong>✅ Found ${count} medicine(s)!</strong> (${engineLabel})<br>
+                    <span style="font-size:0.85em;">Review each medicine below and click "Add" individually, or use "Add All Medicines" to save them all at once.</span>`;
 
-                // Highlight the form to draw attention
-                document.getElementById('prescriptionForm').style.border = '2px solid #28a745';
-                document.getElementById('prescriptionForm').style.borderRadius = '10px';
-                document.getElementById('prescriptionForm').style.padding = '12px';
-                setTimeout(() => {
-                    document.getElementById('prescriptionForm').style.border = 'none';
-                    document.getElementById('prescriptionForm').style.padding = '0';
-                }, 3000);
+                // Store for later
+                extractedMedicines = medicines;
+
+                // Build medicine cards
+                const container = document.getElementById('extractedMedicinesContainer');
+                const listDiv = document.getElementById('extractedMedicinesList');
+                listDiv.innerHTML = '';
+
+                medicines.forEach((rx, idx) => {
+                    const confidence = Math.round((rx.ocr_confidence || 0) * 100);
+                    const confColor = confidence >= 70 ? '#28a745' : confidence >= 50 ? '#ffc107' : '#dc3545';
+                    const card = document.createElement('div');
+                    card.id = `extractedMed_${idx}`;
+                    card.style.cssText = 'background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 10px; padding: 14px; margin-bottom: 10px; position: relative;';
+                    card.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 8px;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <div style="font-weight: bold; font-size: 1.05em; color: #004085; margin-bottom: 4px;">
+                                    💊 ${rx.medicine_name || 'Unknown'}
+                                    <span style="font-size: 0.75em; color: ${confColor}; font-weight: normal; margin-left: 6px;">(${confidence}%)</span>
+                                </div>
+                                <div style="font-size: 0.88em; color: #495057;">
+                                    ${rx.dosage ? `<span><strong>Dosage:</strong> ${rx.dosage} ${rx.dosage_unit || 'mg'}</span> &nbsp;|&nbsp;` : ''}
+                                    ${rx.frequency ? `<span><strong>Freq:</strong> ${rx.frequency}</span> &nbsp;|&nbsp;` : ''}
+                                    ${rx.duration ? `<span><strong>Duration:</strong> ${rx.duration} days</span> &nbsp;|&nbsp;` : ''}
+                                    ${rx.route ? `<span><strong>Route:</strong> ${rx.route}</span>` : ''}
+                                </div>
+                                ${rx.instructions ? `<div style="font-size: 0.85em; color: #6c757d; margin-top: 3px;">📝 ${rx.instructions}</div>` : ''}
+                                ${rx.extraction_notes && rx.extraction_notes.length > 0 ? `<div style="font-size: 0.8em; color: #856404; margin-top: 3px;">⚠️ ${rx.extraction_notes.join(' | ')}</div>` : ''}
+                            </div>
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                <button class="btn btn-primary" onclick="addExtractedMedicine(${idx})" style="font-size: 0.82em; padding: 5px 14px; white-space: nowrap;" id="addMedBtn_${idx}">➕ Add</button>
+                                <button class="btn" onclick="fillFormWithMedicine(${idx})" style="font-size: 0.82em; padding: 5px 10px; background: #6c757d; color: white; white-space: nowrap;" title="Edit in form below">✏️</button>
+                            </div>
+                        </div>
+                    `;
+                    listDiv.appendChild(card);
+                });
+
+                container.style.display = 'block';
 
             } else {
                 statusDiv.style.background = '#f8d7da';
@@ -1371,6 +1361,208 @@
             statusDiv.style.background = '#f8d7da';
             statusDiv.style.color = '#721c24';
             statusDiv.innerHTML = `❌ Error: ${err.message}. Please fill the form manually.`;
+        });
+    }
+
+    // Fill the manual form with a specific extracted medicine (for editing before adding)
+    function fillFormWithMedicine(idx) {
+        const rx = extractedMedicines[idx];
+        if (!rx) return;
+
+        if (rx.medicine_name) document.getElementById('medicineName').value = rx.medicine_name;
+        if (rx.dosage) document.getElementById('dosage').value = rx.dosage;
+        if (rx.dosage_unit) {
+            const unitSelect = document.getElementById('dosageUnit');
+            for (let i = 0; i < unitSelect.options.length; i++) {
+                if (unitSelect.options[i].value.toLowerCase() === rx.dosage_unit.toLowerCase()) {
+                    unitSelect.selectedIndex = i; break;
+                }
+            }
+        }
+        if (rx.frequency) {
+            const freqSelect = document.getElementById('frequency');
+            let matched = false;
+            for (let i = 0; i < freqSelect.options.length; i++) {
+                if (freqSelect.options[i].value.toLowerCase() === rx.frequency.toLowerCase()) {
+                    freqSelect.selectedIndex = i; matched = true; break;
+                }
+            }
+            if (!matched) {
+                const opt = document.createElement('option');
+                opt.value = rx.frequency; opt.textContent = rx.frequency; opt.selected = true;
+                freqSelect.appendChild(opt);
+            }
+        }
+        if (rx.duration) document.getElementById('duration').value = rx.duration;
+        if (rx.route) {
+            const routeSelect = document.getElementById('route');
+            for (let i = 0; i < routeSelect.options.length; i++) {
+                if (routeSelect.options[i].value.toLowerCase() === rx.route.toLowerCase()) {
+                    routeSelect.selectedIndex = i; break;
+                }
+            }
+        }
+        if (rx.instructions) document.getElementById('instructions').value = rx.instructions;
+        if (rx.special_instructions) document.getElementById('specialInstructions').value = rx.special_instructions;
+
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('startDate').value = today;
+        if (rx.duration) {
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + parseInt(rx.duration));
+            document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+        }
+        autoFillMedicineInfo();
+
+        // Scroll to form
+        document.getElementById('prescriptionForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById('prescriptionForm').style.border = '2px solid #007bff';
+        document.getElementById('prescriptionForm').style.borderRadius = '10px';
+        document.getElementById('prescriptionForm').style.padding = '12px';
+        setTimeout(() => {
+            document.getElementById('prescriptionForm').style.border = 'none';
+            document.getElementById('prescriptionForm').style.padding = '0';
+        }, 2500);
+    }
+
+    // Add a single extracted medicine directly to database
+    function addExtractedMedicine(idx) {
+        const rx = extractedMedicines[idx];
+        if (!rx || !rx.medicine_name) { alert('❌ No medicine name detected for this entry'); return; }
+
+        const btn = document.getElementById(`addMedBtn_${idx}`);
+        btn.disabled = true;
+        btn.textContent = '⏳ Saving...';
+
+        const today = new Date().toISOString().split('T')[0];
+        const duration = parseInt(rx.duration) || 30;
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + duration);
+
+        fetch(`${API_BASE}/prescriptions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: currentUser.id,
+                username: currentUser.username,
+                medicine_name: rx.medicine_name,
+                dosage: rx.dosage,
+                dosage_unit: rx.dosage_unit || 'mg',
+                frequency: rx.frequency || 'Once daily',
+                duration: duration,
+                start_date: today,
+                end_date: endDate.toISOString().split('T')[0],
+                prescribed_by: null,
+                instructions: rx.instructions || null,
+                special_instructions: rx.special_instructions || null,
+                is_confirmed: true
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                btn.textContent = '✅ Added';
+                btn.style.background = '#28a745';
+                btn.disabled = true;
+
+                const card = document.getElementById(`extractedMed_${idx}`);
+                card.style.border = '2px solid #28a745';
+                card.style.background = '#d4edda';
+
+                // Initialize tracking
+                fetch(`${API_BASE}/prescriptions/user/${currentUser.id}/init-tracking`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                }).catch(() => {});
+
+                loadPrescriptions();
+                loadDashboard();
+            } else {
+                btn.disabled = false;
+                btn.textContent = '➕ Add';
+                alert('❌ ' + (data.message || 'Failed to add'));
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.textContent = '➕ Add';
+            alert('❌ Error: ' + err.message);
+        });
+    }
+
+    // Add ALL extracted medicines at once
+    function addAllExtractedMedicines() {
+        if (!extractedMedicines || extractedMedicines.length === 0) {
+            alert('No medicines to add'); return;
+        }
+
+        const addAllBtn = document.getElementById('addAllBtn');
+        addAllBtn.disabled = true;
+        addAllBtn.textContent = '⏳ Adding all...';
+
+        let added = 0;
+        let total = extractedMedicines.filter(rx => rx.medicine_name).length;
+
+        const promises = extractedMedicines.map((rx, idx) => {
+            if (!rx.medicine_name) return Promise.resolve();
+            const btn = document.getElementById(`addMedBtn_${idx}`);
+            if (btn && btn.textContent === '✅ Added') return Promise.resolve(); // Already added
+
+            const today = new Date().toISOString().split('T')[0];
+            const duration = parseInt(rx.duration) || 30;
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + duration);
+
+            return fetch(`${API_BASE}/prescriptions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: currentUser.id,
+                    username: currentUser.username,
+                    medicine_name: rx.medicine_name,
+                    dosage: rx.dosage,
+                    dosage_unit: rx.dosage_unit || 'mg',
+                    frequency: rx.frequency || 'Once daily',
+                    duration: duration,
+                    start_date: today,
+                    end_date: endDate.toISOString().split('T')[0],
+                    prescribed_by: null,
+                    instructions: rx.instructions || null,
+                    special_instructions: rx.special_instructions || null,
+                    is_confirmed: true
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    added++;
+                    const btn = document.getElementById(`addMedBtn_${idx}`);
+                    if (btn) { btn.textContent = '✅ Added'; btn.style.background = '#28a745'; btn.disabled = true; }
+                    const card = document.getElementById(`extractedMed_${idx}`);
+                    if (card) { card.style.border = '2px solid #28a745'; card.style.background = '#d4edda'; }
+                }
+            })
+            .catch(err => console.error(`Error adding ${rx.medicine_name}:`, err));
+        });
+
+        Promise.all(promises).then(() => {
+            addAllBtn.textContent = `✅ Added ${added}/${total} medicines`;
+            addAllBtn.style.background = '#28a745';
+
+            // Init tracking + reload
+            fetch(`${API_BASE}/prescriptions/user/${currentUser.id}/init-tracking`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }).catch(() => {});
+
+            loadPrescriptions();
+            loadDashboard();
+
+            if (added === total) {
+                alert(`✅ All ${added} medicines added successfully!`);
+            } else {
+                alert(`Added ${added} of ${total} medicines. Some may have had issues.`);
+            }
         });
     }
 
@@ -1441,6 +1633,8 @@
                 document.getElementById('imagePreview').style.display = 'none';
                 document.getElementById('analysisStatus').style.display = 'none';
                 document.getElementById('medicineHint').style.display = 'none';
+                document.getElementById('extractedMedicinesContainer').style.display = 'none';
+                extractedMedicines = [];
                 
                 // Initialize tracking and reload data
                 console.log('Initializing tracking for user', currentUser.id);

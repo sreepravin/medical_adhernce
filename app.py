@@ -412,7 +412,7 @@ def set_gemini_key():
 
 @app.route('/api/prescriptions/ocr', methods=['POST'])
 def process_prescription_image():
-    """Process prescription image via OCR and save to database (Step 2 & 3)"""
+    """Process prescription image via OCR and save ALL medicines to database"""
     try:
         if 'image' not in request.files:
             return error_response("No image provided", "Validation Error", 400)
@@ -425,22 +425,32 @@ def process_prescription_image():
         if not user_id:
             return error_response("user_id required", "Validation Error", 400)
         
-        # Process OCR
+        # Process OCR — now returns a LIST of prescription dicts
         image_bytes = image_file.read()
-        prescription_data = ocr.extract_from_image(image_bytes)
+        prescription_list = ocr.extract_from_image(image_bytes)
         
-        if prescription_data.get("error"):
-            prescription_data["requires_manual_confirmation"] = True
+        # Handle legacy single-dict return (shouldn't happen but be safe)
+        if isinstance(prescription_list, dict):
+            prescription_list = [prescription_list]
+        
+        if not prescription_list or len(prescription_list) == 0:
+            return error_response("Could not extract any data from image", "OCR Error")
+        
+        # Check if first entry has an error
+        if prescription_list[0].get("error"):
+            prescription_list[0]["requires_manual_confirmation"] = True
             return success_response(
-                prescription_data,
+                {"medicines": prescription_list, "count": len(prescription_list)},
                 "OCR had issues - please review and confirm the extracted data"
             )
         
-        prescription_data["user_id"] = int(user_id)
-        prescription_data["username"] = username
+        # Tag each medicine with user info
+        for rx in prescription_list:
+            rx["user_id"] = int(user_id)
+            rx["username"] = username
         
-        # Auto-save to database if requested
-        if save_to_db and prescription_data.get("medicine_name"):
+        # Auto-save ALL medicines to database if requested
+        if save_to_db:
             conn = get_db_connection()
             if conn:
                 cursor = conn.cursor()
@@ -458,95 +468,109 @@ def process_prescription_image():
                 except Exception as e:
                     print(f"User check note: {e}")
                 
-                start_date = datetime.now().date()
-                duration_val = prescription_data.get("duration") or 30
-                end_date = (start_date + timedelta(days=int(duration_val))).isoformat()
-                
-                # Look up instructions from medication KB
-                med_info = get_medication_info(prescription_data.get("medicine_name", ""))
-                instructions = None
-                special_instructions = None
-                if med_info:
-                    instructions = f"{med_info.get('how_to_take', '')}. {med_info.get('with_food', '')}. {med_info.get('duration_instruction', '')}".strip('. ')
-                    special_instructions = f"Contraindications: {', '.join(med_info.get('contraindications', []))}. {med_info.get('risks_of_skipping', '')}".strip('. ')
-                
-                query = """
-                INSERT INTO prescriptions 
-                (user_id, medication_id, medicine_name, dosage, dosage_unit, frequency, duration,
-                 start_date, end_date, route, instructions, special_instructions,
-                 prescription_image_url, ocr_confidence, is_confirmed)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-                """
-                
-                cursor.execute(query, (
-                    user_id,
-                    None,
-                    prescription_data.get("medicine_name"),
-                    prescription_data.get("dosage"),
-                    prescription_data.get("dosage_unit", "mg"),
-                    prescription_data.get("frequency", "Once daily"),
-                    duration_val,
-                    start_date,
-                    end_date,
-                    prescription_data.get("route", "oral"),
-                    instructions,
-                    special_instructions,
-                    f"ocr_upload_{user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                    prescription_data.get("ocr_confidence", 0.5),
-                    False  # needs user confirmation
-                ))
-                
-                prescription_id = cursor.fetchone()[0]
-                conn.commit()
-                
-                # Auto-create adherence plan & dose tracking
-                try:
-                    frequency = prescription_data.get("frequency", "Once daily")
-                    daily_schedule = format_daily_schedule("1", frequency)
-                    nudges = get_adherence_nudge(prescription_data.get("medicine_name", ""), frequency)
-                    why_important = med_info.get("why_important") if med_info else "Follow your medication schedule."
-                    nudge_reason = nudges[0].get("message") if nudges else "Taking medication as prescribed is important."
+                for rx in prescription_list:
+                    if not rx.get("medicine_name"):
+                        continue
                     
-                    cursor.execute("""
-                        INSERT INTO adherence_plans
-                        (prescription_id, user_id, daily_schedule, why_important, nudge_reason)
-                        VALUES (%s, %s, %s, %s, %s)
+                    start_date = datetime.now().date()
+                    duration_val = rx.get("duration") or 30
+                    end_date = (start_date + timedelta(days=int(duration_val))).isoformat()
+                    
+                    # Look up instructions from medication KB
+                    med_info = get_medication_info(rx.get("medicine_name", ""))
+                    instructions = None
+                    special_instructions = None
+                    if med_info:
+                        instructions = f"{med_info.get('how_to_take', '')}. {med_info.get('with_food', '')}. {med_info.get('duration_instruction', '')}".strip('. ')
+                        special_instructions = f"Contraindications: {', '.join(med_info.get('contraindications', []))}. {med_info.get('risks_of_skipping', '')}".strip('. ')
+                    
+                    try:
+                        query = """
+                        INSERT INTO prescriptions 
+                        (user_id, medication_id, medicine_name, dosage, dosage_unit, frequency, duration,
+                         start_date, end_date, route, instructions, special_instructions,
+                         prescription_image_url, ocr_confidence, is_confirmed)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
-                    """, (prescription_id, user_id, daily_schedule, why_important, nudge_reason))
-                    plan_id = cursor.fetchone()[0]
-                    conn.commit()
-                    
-                    medicine_name_ocr = prescription_data.get('medicine_name', 'Medication')
-                    dosage_ocr = f"{prescription_data.get('dosage', '')} {prescription_data.get('dosage_unit', 'mg')}".strip()
-                    for day in range(int(duration_val)):
-                        current_date = start_date + timedelta(days=day)
-                        for time_str in daily_schedule:
-                            hour, minute = map(int, time_str.split(':'))
-                            scheduled_time = datetime.combine(current_date, datetime.min.time().replace(hour=hour, minute=minute))
+                        """
+                        
+                        cursor.execute(query, (
+                            user_id,
+                            None,
+                            rx.get("medicine_name"),
+                            rx.get("dosage"),
+                            rx.get("dosage_unit", "mg"),
+                            rx.get("frequency", "Once daily"),
+                            duration_val,
+                            start_date,
+                            end_date,
+                            rx.get("route", "oral"),
+                            instructions or rx.get("instructions"),
+                            special_instructions or rx.get("special_instructions"),
+                            f"ocr_upload_{user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                            rx.get("ocr_confidence", 0.5),
+                            False
+                        ))
+                        
+                        prescription_id = cursor.fetchone()[0]
+                        conn.commit()
+                        rx["prescription_id"] = prescription_id
+                        rx["saved"] = True
+                        rx["instructions"] = instructions or rx.get("instructions")
+                        rx["special_instructions"] = special_instructions or rx.get("special_instructions")
+                        
+                        # Auto-create adherence plan & dose tracking
+                        try:
+                            frequency = rx.get("frequency", "Once daily")
+                            daily_schedule = format_daily_schedule("1", frequency)
+                            nudges = get_adherence_nudge(rx.get("medicine_name", ""), frequency)
+                            why_important = med_info.get("why_important") if med_info else "Follow your medication schedule."
+                            nudge_reason = nudges[0].get("message") if nudges else "Taking medication as prescribed is important."
+                            
                             cursor.execute("""
-                                INSERT INTO dose_tracking
-                                (adherence_plan_id, prescription_id, user_id, scheduled_time)
-                                VALUES (%s, %s, %s, %s)
+                                INSERT INTO adherence_plans
+                                (prescription_id, user_id, daily_schedule, why_important, nudge_reason)
+                                VALUES (%s, %s, %s, %s, %s)
                                 RETURNING id
-                            """, (plan_id, prescription_id, user_id, scheduled_time))
-                            dt_id = cursor.fetchone()[0]
-                            _create_reminder_for_dose(cursor, dt_id, user_id, scheduled_time, medicine_name_ocr, dosage_ocr)
-                    conn.commit()
-                except Exception as plan_err:
-                    print(f"Adherence plan creation note: {plan_err}")
+                            """, (prescription_id, user_id, daily_schedule, why_important, nudge_reason))
+                            plan_id = cursor.fetchone()[0]
+                            conn.commit()
+                            
+                            medicine_name_ocr = rx.get('medicine_name', 'Medication')
+                            dosage_ocr = f"{rx.get('dosage', '')} {rx.get('dosage_unit', 'mg')}".strip()
+                            for day in range(int(duration_val)):
+                                current_date = start_date + timedelta(days=day)
+                                for time_str in daily_schedule:
+                                    hour, minute = map(int, time_str.split(':'))
+                                    scheduled_time = datetime.combine(current_date, datetime.min.time().replace(hour=hour, minute=minute))
+                                    cursor.execute("""
+                                        INSERT INTO dose_tracking
+                                        (adherence_plan_id, prescription_id, user_id, scheduled_time)
+                                        VALUES (%s, %s, %s, %s)
+                                        RETURNING id
+                                    """, (plan_id, prescription_id, user_id, scheduled_time))
+                                    dt_id = cursor.fetchone()[0]
+                                    _create_reminder_for_dose(cursor, dt_id, user_id, scheduled_time, medicine_name_ocr, dosage_ocr)
+                            conn.commit()
+                        except Exception as plan_err:
+                            print(f"Adherence plan creation note for {rx.get('medicine_name')}: {plan_err}")
+                    except Exception as save_err:
+                        print(f"Error saving {rx.get('medicine_name')}: {save_err}")
+                        rx["saved"] = False
+                        rx["save_error"] = str(save_err)
                 
                 cursor.close()
                 close_db_connection(conn)
-                
-                prescription_data["prescription_id"] = prescription_id
-                prescription_data["saved"] = True
-                prescription_data["instructions"] = instructions
-                prescription_data["special_instructions"] = special_instructions
+        
+        count = len(prescription_list)
+        saved_count = sum(1 for rx in prescription_list if rx.get("saved"))
+        msg = f"Found {count} medicine(s) in prescription"
+        if save_to_db:
+            msg += f", saved {saved_count} to database"
         
         return success_response(
-            prescription_data,
-            "Prescription image processed and saved successfully"
+            {"medicines": prescription_list, "count": count},
+            msg
         )
     
     except Exception as e:

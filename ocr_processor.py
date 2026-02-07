@@ -6,6 +6,7 @@ Uses Google Gemini AI (primary) with Tesseract OCR (fallback)
 import os
 import re
 import json
+import time
 import base64
 import difflib
 from io import BytesIO
@@ -126,7 +127,8 @@ class PrescriptionOCR:
                 print("[OCR] ⚠ GEMINI_API_KEY not set in environment")
     
     def extract_from_image(self, image_path_or_bytes):
-        """Extract prescription data from image using Gemini AI (primary) or Tesseract (fallback)"""
+        """Extract ALL prescription data from image using Gemini AI (primary) or Tesseract (fallback).
+        Returns a list of prescription dicts (one per medicine found)."""
         try:
             # Load image
             if isinstance(image_path_or_bytes, str):
@@ -145,60 +147,91 @@ class PrescriptionOCR:
             # === PRIMARY: Try Gemini AI ===
             if self.gemini_available:
                 print("[OCR] Using Gemini AI for prescription analysis...")
-                result = self._extract_with_gemini(image)
-                if result and result.get("medicine_name"):
-                    result["ocr_engine"] = "gemini-ai"
-                    print(f"[OCR] ✓ Gemini extracted medicine: {result.get('medicine_name')}")
-                    return result
+                results = self._extract_with_gemini(image)
+                if results and isinstance(results, list) and len(results) > 0:
+                    for r in results:
+                        r["ocr_engine"] = "gemini-ai"
+                    names = [r.get('medicine_name', '?') for r in results]
+                    print(f"[OCR] ✓ Gemini extracted {len(results)} medicine(s): {', '.join(names)}")
+                    return results
+                elif results and isinstance(results, dict) and results.get("medicine_name"):
+                    # Legacy single-dict fallback
+                    results["ocr_engine"] = "gemini-ai"
+                    print(f"[OCR] ✓ Gemini extracted medicine: {results.get('medicine_name')}")
+                    return [results]
                 else:
-                    print("[OCR] Gemini couldn't extract medicine, falling back to Tesseract...")
+                    print("[OCR] Gemini couldn't extract medicines, falling back to Tesseract...")
             
             # === FALLBACK: Tesseract OCR ===
-            return self._extract_with_tesseract(image)
+            tesseract_results = self._extract_with_tesseract(image)
+            return tesseract_results  # Already a list
         
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return {
+            return [{
                 "error": str(e),
                 "ocr_confidence": 0,
                 "requires_manual_confirmation": True
-            }
+            }]
     
     # ================================================================
     # GEMINI AI EXTRACTION
     # ================================================================
     def _extract_with_gemini(self, image):
-        """Use Google Gemini AI to analyze prescription image and extract structured data"""
+        """Use Google Gemini AI to analyze prescription image and extract ALL medicines as a list"""
         try:
-            prompt = """Analyze this prescription/medicine image carefully. Extract the following information and return ONLY a valid JSON object (no markdown, no code blocks, no extra text):
+            prompt = """Analyze this prescription/medicine image carefully. Extract ALL medicines/drugs found in the image.
 
-{
-  "medicine_name": "exact medicine/drug name found in the image",
-  "dosage": "numeric dosage value (e.g. 500)",
-  "dosage_unit": "unit like mg, ml, g, mcg",
-  "frequency": "how often to take (e.g. Once daily, Twice daily, Three times daily)",
-  "duration": "number of days as integer",
-  "route": "how to take it (e.g. oral, tablet, capsule, injection, syrup, cream)",
-  "instructions": "any special instructions like take after food, avoid alcohol etc",
-  "raw_text": "all readable text from the image"
-}
+Return ONLY a valid JSON array (no markdown, no code blocks, no extra text). Each element is an object for one medicine:
+
+[
+  {
+    "medicine_name": "exact medicine/drug name",
+    "dosage": "numeric dosage value (e.g. 500)",
+    "dosage_unit": "unit like mg, ml, g, mcg",
+    "frequency": "how often to take (e.g. Once daily, Twice daily, Three times daily)",
+    "duration": "number of days as integer",
+    "route": "how to take it (e.g. oral, tablet, capsule, injection, syrup, cream)",
+    "instructions": "any special instructions for THIS medicine",
+    "raw_text": "all readable text from the image (include in first element only)"
+  }
+]
 
 Rules:
-- medicine_name is the MOST IMPORTANT field. Look for drug/medicine names carefully.
+- Extract EVERY medicine/drug listed in the prescription. Do NOT skip any.
+- medicine_name is the MOST IMPORTANT field for each entry.
 - If you see brand names, include them. If you see generic names, include those.
-- If multiple medicines are listed, use the first/primary one.
 - For dosage, only include the number (e.g. "500" not "500mg").
 - For duration, convert to days (e.g. "1 week" = 7, "1 month" = 30).
 - If you cannot determine a field, use null.
-- Return ONLY the JSON object, nothing else."""
+- Even if there is only ONE medicine, return it as an array with one element.
+- Return ONLY the JSON array, nothing else."""
 
-            response = self.gemini_client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=[prompt, image]
-            )
-            response_text = response.text.strip()
-            print(f"[OCR] Gemini raw response: {response_text[:500]}")
+            # Retry up to 3 times on rate limit (429) errors
+            response_text = None
+            for attempt in range(3):
+                try:
+                    response = self.gemini_client.models.generate_content(
+                        model='gemini-2.0-flash',
+                        contents=[prompt, image]
+                    )
+                    response_text = response.text.strip()
+                    break  # Success
+                except Exception as retry_err:
+                    err_str = str(retry_err)
+                    if '429' in err_str or 'RESOURCE_EXHAUSTED' in err_str:
+                        wait = (attempt + 1) * 5  # 5s, 10s, 15s
+                        print(f"[OCR] Gemini rate limited (attempt {attempt+1}/3), retrying in {wait}s...")
+                        time.sleep(wait)
+                    else:
+                        raise retry_err  # Non-rate-limit error, don't retry
+            
+            if response_text is None:
+                print("[OCR] Gemini failed after 3 retries (rate limited)")
+                return None
+            
+            print(f"[OCR] Gemini raw response: {response_text[:800]}")
             
             # Clean response - remove markdown code blocks if present
             response_text = re.sub(r'^```(?:json)?\s*', '', response_text)
@@ -208,34 +241,47 @@ Rules:
             # Parse JSON
             data = json.loads(response_text)
             
-            # Build standard prescription dict
-            prescription = {
-                "medicine_name": data.get("medicine_name"),
-                "dosage": str(data["dosage"]) if data.get("dosage") else None,
-                "dosage_unit": data.get("dosage_unit", "mg"),
-                "frequency": data.get("frequency", "Once daily"),
-                "duration": int(data["duration"]) if data.get("duration") else 30,
-                "route": data.get("route", "oral"),
-                "raw_text": data.get("raw_text", ""),
-                "extraction_notes": [],
-                "instructions": data.get("instructions"),
-                "ocr_confidence": 0.9 if data.get("medicine_name") else 0.3,
-                "requires_manual_confirmation": not bool(data.get("medicine_name")),
-            }
+            # Handle both array and single-object responses
+            if isinstance(data, dict):
+                data = [data]  # Wrap single object in array
             
-            if not prescription["medicine_name"]:
-                prescription["extraction_notes"].append("AI could not identify medicine name - please enter manually")
-            if not prescription["dosage"]:
-                prescription["extraction_notes"].append("Dosage unclear - please confirm")
-            if prescription["extraction_notes"]:
-                prescription["requires_manual_confirmation"] = True
+            if not isinstance(data, list) or len(data) == 0:
+                return None
             
-            return prescription
+            prescriptions = []
+            for i, med in enumerate(data):
+                prescription = {
+                    "medicine_name": med.get("medicine_name"),
+                    "dosage": str(med["dosage"]) if med.get("dosage") else None,
+                    "dosage_unit": med.get("dosage_unit", "mg"),
+                    "frequency": med.get("frequency", "Once daily"),
+                    "duration": int(med["duration"]) if med.get("duration") else 30,
+                    "route": med.get("route", "oral"),
+                    "raw_text": med.get("raw_text", "") if i == 0 else "",
+                    "extraction_notes": [],
+                    "instructions": med.get("instructions"),
+                    "special_instructions": med.get("special_instructions"),
+                    "ocr_confidence": 0.9 if med.get("medicine_name") else 0.3,
+                    "requires_manual_confirmation": not bool(med.get("medicine_name")),
+                }
+                
+                if not prescription["medicine_name"]:
+                    prescription["extraction_notes"].append("AI could not identify medicine name - please enter manually")
+                if not prescription["dosage"]:
+                    prescription["extraction_notes"].append("Dosage unclear - please confirm")
+                if prescription["extraction_notes"]:
+                    prescription["requires_manual_confirmation"] = True
+                
+                prescriptions.append(prescription)
+            
+            # Filter out entries with no medicine name (noise)
+            valid = [p for p in prescriptions if p.get("medicine_name")]
+            return valid if valid else prescriptions[:1]  # Return at least one entry
             
         except json.JSONDecodeError as e:
             print(f"[OCR] Gemini JSON parse error: {e}")
-            # Try to extract medicine name from raw text response
-            return self._parse_gemini_text_fallback(response_text)
+            result = self._parse_gemini_text_fallback(response_text)
+            return [result] if result else None
         except Exception as e:
             print(f"[OCR] Gemini error: {e}")
             return None
@@ -268,7 +314,7 @@ Rules:
     # TESSERACT OCR EXTRACTION (Fallback)
     # ================================================================
     def _extract_with_tesseract(self, image):
-        """Use Tesseract OCR + regex parsing as fallback"""
+        """Use Tesseract OCR + regex parsing as fallback. Returns a LIST of prescription dicts."""
         text = ""
         if self.tesseract_available:
             variants = self._get_image_variants(image)
@@ -295,10 +341,16 @@ Rules:
             print(f"[OCR] Tesseract best variant: {best_label} (score={best_score})")
             print(f"[OCR] Raw text ({len(text)} chars): {repr(text[:300])}")
         
-        prescription_data = self._parse_prescription_text(text)
-        prescription_data["ocr_confidence"] = self._calculate_confidence(text)
-        prescription_data["ocr_engine"] = "tesseract" if self.tesseract_available else "fallback"
-        return prescription_data
+        # Extract ALL medicines from the text
+        medicines = self._extract_all_medicines_from_text(text)
+        confidence = self._calculate_confidence(text)
+        engine = "tesseract" if self.tesseract_available else "fallback"
+        for m in medicines:
+            m["ocr_confidence"] = confidence
+            m["ocr_engine"] = engine
+        
+        print(f"[OCR] Tesseract found {len(medicines)} medicine(s): {[m.get('medicine_name','?') for m in medicines]}")
+        return medicines
     
     # ================================================================
     # HELPER METHODS
@@ -391,142 +443,99 @@ Rules:
         
         return variants
     
-    def _parse_prescription_text(self, text):
-        """Parse raw OCR text into structured prescription data"""
-        prescription = {
-            "medicine_name": None,
-            "dosage": None,
-            "dosage_unit": None,
-            "frequency": None,
-            "duration": None,
-            "route": None,
-            "raw_text": text,
-            "extraction_notes": []
-        }
-        
+    def _find_all_medicine_names(self, text):
+        """Find ALL medicine names in OCR text using multiple strategies.
+        Returns a list of (medicine_name, position_in_text) tuples."""
         if not text or len(text.strip()) < 2:
-            prescription["extraction_notes"].append("No text could be extracted from image")
-            prescription["extraction_notes"].append("Medicine name unclear - please enter manually")
-            prescription["extraction_notes"].append("Dosage unclear - please enter manually")
-            prescription["extraction_notes"].append("Frequency unclear - please enter manually")
-            prescription["requires_manual_confirmation"] = True
-            return prescription
+            return []
         
-        # Clean text - keep newlines for line-based parsing
-        original_lines = [line.strip() for line in text.split('\n') if line.strip()]
-        clean_text = text.replace('\n', ' ')
-        
-        # === MEDICINE NAME EXTRACTION (multi-strategy) ===
-        
-        text_lower = clean_text.lower()
-        # Remove common OCR noise characters
+        text_lower = text.lower()
         text_cleaned = re.sub(r'[|{}\[\]~`]', '', text_lower)
+        text_no_spaces = text_cleaned.replace(' ', '')
+        found = []  # list of (name, position)
+        found_lower = set()  # track what we've already found
         
         # Strategy 1: Exact match against known medicine database
         for med in KNOWN_MEDICINES:
-            if med in text_cleaned:
-                prescription["medicine_name"] = med.capitalize()
-                break
+            pos = text_cleaned.find(med)
+            if pos >= 0 and med not in found_lower:
+                found.append((med.capitalize(), pos))
+                found_lower.add(med)
         
-        # Strategy 2: Fuzzy match against known medicines
-        # OCR often introduces spaces/typos, e.g. "Amox icillin" or "Parace tamol"
-        if not prescription["medicine_name"]:
-            # First try: remove all spaces and match
-            text_no_spaces = text_cleaned.replace(' ', '')
+        # Strategy 2: No-spaces match (OCR often splits words like "Met formin")
+        for med in KNOWN_MEDICINES:
+            if med in found_lower:
+                continue
+            pos = text_no_spaces.find(med)
+            if pos >= 0:
+                found.append((med.capitalize(), pos))
+                found_lower.add(med)
+        
+        # Strategy 3: Fuzzy match words and word-pairs against known medicines
+        words = re.findall(r'[a-zA-Z]{2,}', text_cleaned)
+        candidates = []
+        for i, w in enumerate(words):
+            candidates.append((w, i))
+            if i < len(words) - 1:
+                candidates.append((w + words[i+1], i))
+        
+        for candidate, word_idx in candidates:
             for med in KNOWN_MEDICINES:
-                if med in text_no_spaces:
-                    prescription["medicine_name"] = med.capitalize()
-                    break
+                if med in found_lower:
+                    continue
+                ratio = difflib.SequenceMatcher(None, candidate.lower(), med).ratio()
+                if ratio >= 0.80:
+                    # Approximate position from word index
+                    found.append((med.capitalize(), word_idx * 10))
+                    found_lower.add(med)
         
-        if not prescription["medicine_name"]:
-            # Second try: fuzzy match each word and word-pairs against known medicines
-            words = re.findall(r'[a-zA-Z]{2,}', text_cleaned)
-            best_match = None
-            best_ratio = 0.0
-            # Check individual words and adjacent word-pairs
-            candidates = list(words)
-            for i in range(len(words) - 1):
-                candidates.append(words[i] + words[i + 1])  # join adjacent words
-            for candidate in candidates:
-                for med in KNOWN_MEDICINES:
-                    ratio = difflib.SequenceMatcher(None, candidate.lower(), med).ratio()
-                    if ratio > best_ratio and ratio >= 0.75:  # 75% similarity threshold
-                        best_ratio = ratio
-                        best_match = med
-            if best_match:
-                prescription["medicine_name"] = best_match.capitalize()
-                prescription["extraction_notes"].append(
-                    f"Medicine name matched via fuzzy matching ({int(best_ratio*100)}% confidence)"
-                )
+        # Strategy 4: Medicine-suffix words (e.g. ending in -in, -ol, -ide, etc.)
+        med_suffix_re = r'\b([A-Za-z]{3,}(?:in|ol|ne|ide|ate|ine|one|cin|lin|min|pril|tan|pine|fen|lol|vir|zole|mab|nib|lam|pam|done|phil|mide|oxin|tide|arin|ulin|zide|sone))\b'
+        skip_words_lower = {'medicine', 'online', 'routine', 'determine', 'combine', 'examine',
+                            'define', 'decline', 'information', 'prescription', 'substitution',
+                            'permission', 'written'}
+        for m in re.finditer(med_suffix_re, text, re.IGNORECASE):
+            word = m.group(1)
+            if word.lower() in skip_words_lower or word.lower() in found_lower or len(word) < 4:
+                continue
+            close = difflib.get_close_matches(word.lower(), KNOWN_MEDICINES, n=1, cutoff=0.6)
+            name = close[0].capitalize() if close else word.capitalize()
+            if name.lower() not in found_lower:
+                found.append((name, m.start()))
+                found_lower.add(name.lower())
         
-        # Strategy 3: Look for medicine name after common labels
-        if not prescription["medicine_name"]:
-            label_patterns = [
-                r'(?:Rx|R[/x]|medicine|tablet|tab|cap|capsule|drug|med|name|medication)[\s.:=/-]*([A-Za-z]{3,}(?:\s?[A-Za-z]+)?)',
-                r'(?:prescribed?|take|Sig)[\s.:=/-]*([A-Za-z]{3,})',
-                r'(?:Drug\s*Name|Med\s*Name|Medication)[\s.:=/-]*([A-Za-z]{3,}(?:\s?[A-Za-z]+)?)',
-            ]
-            for pattern in label_patterns:
-                match = re.search(pattern, clean_text, re.IGNORECASE)
-                if match:
-                    name = match.group(1).strip()
-                    # Filter out common non-medicine words
-                    skip_words = {'the', 'for', 'take', 'with', 'food', 'water', 'daily', 'twice',
-                                  'once', 'oral', 'patient', 'doctor', 'date', 'name', 'this',
-                                  'that', 'your', 'from', 'have', 'been', 'will', 'should'}
-                    if name.lower() not in skip_words and len(name) >= 3:
-                        # Check if this label-extracted name fuzzy-matches a known medicine
-                        close = difflib.get_close_matches(name.lower(), KNOWN_MEDICINES, n=1, cutoff=0.6)
-                        if close:
-                            prescription["medicine_name"] = close[0].capitalize()
-                        else:
-                            prescription["medicine_name"] = name.capitalize()
-                        break
+        # Sort by position in text to maintain order
+        found.sort(key=lambda x: x[1])
+        return found
+    
+    def _extract_context_near(self, text, medicine_name, window=200):
+        """Extract text near a medicine name for parsing dosage/frequency/etc."""
+        text_lower = text.lower()
+        med_lower = medicine_name.lower()
+        pos = text_lower.find(med_lower)
+        if pos < 0:
+            # Try without spaces
+            pos = text_lower.replace(' ', '').find(med_lower)
+            if pos < 0:
+                return text  # Fallback: use full text
+        start = max(0, pos - 30)  # A little before
+        end = min(len(text), pos + len(medicine_name) + window)
+        return text[start:end]
+    
+    def _parse_dosage_freq_duration(self, context_text):
+        """Parse dosage, frequency, duration, and route from a text snippet."""
+        result = {"dosage": None, "dosage_unit": None, "frequency": None, "duration": None, "route": None}
         
-        # Strategy 4: Find words that look like medicine names (common suffixes)
-        if not prescription["medicine_name"]:
-            med_suffix_re = r'\b([A-Za-z]{3,}(?:in|ol|ne|ide|ate|ine|one|cin|lin|min|pril|tan|pine|fen|lol|vir|zole|mab|nib|lam|pam|done|phil|mide|oxin|tide|arin|ulin|zide|sone))\b'
-            suffix_matches = re.findall(med_suffix_re, clean_text, re.IGNORECASE)
-            skip_words_lower = {'medicine', 'online', 'routine', 'determine', 'combine', 'examine',
-                                'define', 'decline', 'antine', 'antine', 'antine'}
-            for word in suffix_matches:
-                if word.lower() not in skip_words_lower and len(word) >= 4:
-                    # Verify against known medicines with fuzzy match
-                    close = difflib.get_close_matches(word.lower(), KNOWN_MEDICINES, n=1, cutoff=0.6)
-                    if close:
-                        prescription["medicine_name"] = close[0].capitalize()
-                    else:
-                        prescription["medicine_name"] = word.capitalize()
-                    break
-        
-        # Strategy 5: Find any long capitalized word (last resort)
-        if not prescription["medicine_name"]:
-            cap_words = re.findall(r'\b([A-Z][a-zA-Z]{4,})\b', clean_text)
-            skip_words = {'Patient', 'Doctor', 'Hospital', 'Clinic', 'Medical', 'Prescription', 'Pharmacy', 
-                         'Address', 'Phone', 'Email', 'Date', 'Signature', 'Name', 'License', 'Number',
-                         'India', 'Health', 'Report', 'Order', 'Department', 'Center', 'Centre',
-                         'Treatment', 'Diagnosis', 'Insurance', 'Register'}
-            for word in cap_words:
-                if word not in skip_words:
-                    # Try fuzzy matching as final attempt
-                    close = difflib.get_close_matches(word.lower(), KNOWN_MEDICINES, n=1, cutoff=0.6)
-                    if close:
-                        prescription["medicine_name"] = close[0].capitalize()
-                    else:
-                        prescription["medicine_name"] = word
-                    break
-        
-        # === DOSAGE EXTRACTION ===
+        # Dosage
         dosage_match = re.search(
-            r'(\d+(?:\.\d+)?)\s*(mg|ml|g|microgram|mcg|%|unit|IU|mcg)',
-            clean_text,
-            re.IGNORECASE
+            r'(\d+(?:\.\d+)?)\s*(mg|ml|g|microgram|mcg|%|unit|IU)',
+            context_text, re.IGNORECASE
         )
         if dosage_match:
-            prescription["dosage"] = dosage_match.group(1)
-            prescription["dosage_unit"] = dosage_match.group(2).lower()
+            result["dosage"] = dosage_match.group(1)
+            result["dosage_unit"] = dosage_match.group(2).lower()
         
-        # === FREQUENCY EXTRACTION ===
+        # Frequency
         frequency_patterns = [
             (r'once\s+(?:a\s+)?(?:day|daily)', 'Once daily'),
             (r'twice\s+(?:a\s+)?(?:day|daily)', 'Twice daily'),
@@ -548,22 +557,19 @@ Rules:
             (r'\btwice\b', 'Twice daily'),
             (r'\bdaily\b', 'Once daily'),
         ]
-        
         for pattern, replacement in frequency_patterns:
-            match = re.search(pattern, clean_text, re.IGNORECASE)
+            match = re.search(pattern, context_text, re.IGNORECASE)
             if match:
                 freq = replacement
-                # Handle backreferences
                 if '\\1' in freq and match.groups():
                     freq = freq.replace('\\1', match.group(1))
-                prescription["frequency"] = freq
+                result["frequency"] = freq
                 break
         
-        # === DURATION EXTRACTION ===
+        # Duration
         duration_match = re.search(
             r'(?:for|x|duration)?\s*(\d+)\s+(?:days?|weeks?|months?)',
-            clean_text,
-            re.IGNORECASE
+            context_text, re.IGNORECASE
         )
         if duration_match:
             days = int(duration_match.group(1))
@@ -571,34 +577,83 @@ Rules:
                 days *= 7
             elif 'month' in duration_match.group(0).lower():
                 days *= 30
-            prescription["duration"] = days
+            result["duration"] = days
         
-        # === ROUTE EXTRACTION ===
+        # Route
         route_match = re.search(
             r'\b(oral|tablet|tab|capsule|cap|injection|inj|intravenous|IV|topical|cream|ointment|drops|syrup|inhaler|patch|sublingual)\b',
-            clean_text,
-            re.IGNORECASE
+            context_text, re.IGNORECASE
         )
         if route_match:
             route_map = {'tab': 'tablet', 'cap': 'capsule', 'inj': 'injection'}
             route = route_match.group(1).lower()
-            prescription["route"] = route_map.get(route, route)
+            result["route"] = route_map.get(route, route)
         
-        # === EXTRACTION NOTES ===
-        if not prescription["medicine_name"]:
-            prescription["extraction_notes"].append("Medicine name unclear - please confirm")
-        if not prescription["dosage"]:
-            prescription["extraction_notes"].append("Dosage unclear - please confirm")
-        if not prescription["frequency"]:
-            prescription["extraction_notes"].append("Frequency unclear - please confirm")
-            prescription["frequency"] = "Once daily"  # Default
-        if not prescription["duration"]:
-            prescription["extraction_notes"].append("Duration not found - defaulting to 30 days")
-            prescription["duration"] = 30
+        return result
+    
+    def _extract_all_medicines_from_text(self, text):
+        """Extract ALL medicines from OCR text, returning a list of prescription dicts."""
+        if not text or len(text.strip()) < 2:
+            return [{
+                "medicine_name": None,
+                "dosage": None,
+                "dosage_unit": None,
+                "frequency": None,
+                "duration": 30,
+                "route": None,
+                "raw_text": text or "",
+                "extraction_notes": ["No text could be extracted from image"],
+                "requires_manual_confirmation": True,
+            }]
         
-        prescription["requires_manual_confirmation"] = len(prescription["extraction_notes"]) > 0
+        # Find all medicine names
+        medicine_hits = self._find_all_medicine_names(text)
+        print(f"[OCR] Found medicine candidates: {[m[0] for m in medicine_hits]}")
         
-        return prescription
+        if not medicine_hits:
+            # No medicines found at all — return single empty entry
+            return [{
+                "medicine_name": None,
+                "dosage": None,
+                "dosage_unit": None,
+                "frequency": None,
+                "duration": 30,
+                "route": None,
+                "raw_text": text,
+                "extraction_notes": ["No medicine names detected — please enter manually"],
+                "requires_manual_confirmation": True,
+            }]
+        
+        results = []
+        for i, (med_name, _pos) in enumerate(medicine_hits):
+            # Get text context near this medicine for parsing details
+            context = self._extract_context_near(text, med_name)
+            details = self._parse_dosage_freq_duration(context)
+            
+            notes = []
+            if not details["dosage"]:
+                notes.append("Dosage unclear - please confirm")
+            if not details["frequency"]:
+                notes.append("Frequency unclear - please confirm")
+                details["frequency"] = "Once daily"
+            if not details["duration"]:
+                notes.append("Duration not found - defaulting to 30 days")
+                details["duration"] = 30
+            
+            prescription = {
+                "medicine_name": med_name,
+                "dosage": details["dosage"],
+                "dosage_unit": details.get("dosage_unit"),
+                "frequency": details["frequency"],
+                "duration": details["duration"],
+                "route": details.get("route"),
+                "raw_text": text if i == 0 else "",
+                "extraction_notes": notes,
+                "requires_manual_confirmation": len(notes) > 0,
+            }
+            results.append(prescription)
+        
+        return results
     
     def _calculate_confidence(self, text):
         """Calculate OCR confidence score"""
