@@ -469,7 +469,9 @@ def process_prescription_image():
         
         # Process OCR — now returns a LIST of prescription dicts
         image_bytes = image_file.read()
+        image_file.close()  # Free file handle
         prescription_list = ocr.extract_from_image(image_bytes)
+        del image_bytes  # Free memory immediately
         
         # Handle legacy single-dict return (shouldn't happen but be safe)
         if isinstance(prescription_list, dict):

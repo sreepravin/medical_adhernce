@@ -126,8 +126,8 @@ class PrescriptionOCR:
             if not api_key:
                 print("[OCR] ⚠ GEMINI_API_KEY not set in environment")
     
-    def _resize_image(self, image, max_dimension=1600):
-        """Resize image if too large to prevent OOM on free-tier hosting."""
+    def _resize_image(self, image, max_dimension=1024):
+        """Resize image to prevent OOM on free-tier hosting (512MB RAM)."""
         w, h = image.size
         if max(w, h) > max_dimension:
             ratio = max_dimension / max(w, h)
@@ -150,16 +150,15 @@ class PrescriptionOCR:
             # Load image
             if isinstance(image_path_or_bytes, str):
                 image = Image.open(image_path_or_bytes)
-                with open(image_path_or_bytes, 'rb') as f:
-                    image_bytes = f.read()
             elif isinstance(image_path_or_bytes, bytes):
                 image = Image.open(BytesIO(image_path_or_bytes))
-                image_bytes = image_path_or_bytes
             else:
                 image = Image.open(BytesIO(image_path_or_bytes))
-                image_bytes = image_path_or_bytes
             
-            # Resize large images to prevent memory issues on deployment
+            # Free raw bytes immediately to save memory
+            image_path_or_bytes = None
+            
+            # Resize large images to prevent OOM on deployment
             image = self._resize_image(image)
             
             print(f"[OCR] Input image: size={image.size}, mode={image.mode}")
@@ -237,9 +236,9 @@ Rules:
 - Even if there is only ONE medicine, return it as an array with one element.
 - Return ONLY the JSON array, nothing else."""
 
-            # Retry up to 3 times on rate limit (429) errors
+            # Retry up to 2 times on rate limit (429) errors
             response_text = None
-            for attempt in range(3):
+            for attempt in range(2):
                 try:
                     response = self.gemini_client.models.generate_content(
                         model='gemini-2.0-flash',
@@ -250,14 +249,17 @@ Rules:
                 except Exception as retry_err:
                     err_str = str(retry_err)
                     if '429' in err_str or 'RESOURCE_EXHAUSTED' in err_str:
-                        wait = (attempt + 1) * 2  # 2s, 4s, 6s (shorter for deployment)
-                        print(f"[OCR] Gemini rate limited (attempt {attempt+1}/3), retrying in {wait}s...")
+                        wait = 3  # Fixed short wait
+                        print(f"[OCR] Gemini rate limited (attempt {attempt+1}/2), retrying in {wait}s...")
                         time.sleep(wait)
                     else:
                         raise retry_err  # Non-rate-limit error, don't retry
             
+            # Free image from memory after Gemini call
+            image = None
+            
             if response_text is None:
-                print("[OCR] Gemini failed after 3 retries (rate limited)")
+                print("[OCR] Gemini failed after 2 retries (rate limited)")
                 return None
             
             print(f"[OCR] Gemini raw response: {response_text[:800]}")
