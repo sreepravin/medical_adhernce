@@ -51,8 +51,33 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+# Set max upload size to 16 MB
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
 # Initialize OCR processor
 ocr = PrescriptionOCR()
+
+# ===== GLOBAL ERROR HANDLERS (always return JSON, never HTML) =====
+
+@app.errorhandler(404)
+def not_found(e):
+    if request.path.startswith('/api/'):
+        return jsonify({"status": "error", "message": "Endpoint not found", "error": str(e)}), 404
+    # Non-API routes: serve frontend
+    return send_from_directory('.', 'index.html')
+
+@app.errorhandler(413)
+def request_entity_too_large(e):
+    return jsonify({"status": "error", "message": "File too large. Maximum upload size is 16 MB.", "error": "Payload Too Large"}), 413
+
+@app.errorhandler(500)
+def internal_error(e):
+    return jsonify({"status": "error", "message": "Internal server error", "error": str(e)}), 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    print(f"Unhandled exception: {str(e)}")
+    return jsonify({"status": "error", "message": "An unexpected error occurred", "error": str(e)}), 500
 
 # Email Configuration
 SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
@@ -1978,7 +2003,9 @@ def serve_frontend():
 
 @app.route('/<path:filename>', methods=['GET'])
 def serve_static(filename):
-    """Serve static files (CSS, JS, etc.)"""
+    """Serve static files (CSS, JS, etc.) — never intercept /api/ paths"""
+    if filename.startswith('api/'):
+        return jsonify({"status": "error", "message": "Endpoint not found", "error": f"No such API route: /{filename}"}), 404
     if os.path.exists(os.path.join('.', filename)):
         return send_from_directory('.', filename)
     # If file not found, serve index.html for frontend routing

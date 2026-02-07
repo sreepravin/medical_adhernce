@@ -1285,7 +1285,15 @@
             method: 'POST',
             body: formData
         })
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) {
+                return r.text().then(text => {
+                    try { return JSON.parse(text); }
+                    catch(e) { throw new Error(`Server error (${r.status}): ${text.substring(0, 100)}`); }
+                });
+            }
+            return r.json();
+        })
         .then(data => {
             analyzeBtn.disabled = false;
             analyzeBtn.textContent = '🔍 Analyze Image';
