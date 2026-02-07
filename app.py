@@ -1947,11 +1947,11 @@ def health_check():
             "hint": "Connection error - check DATABASE_URL format"
         }), 503
 
-# Auto-create database tables on startup
+# Auto-create database tables on startup (non-fatal — app starts even if DB isn't ready)
 def init_database():
     """Create tables from schema.sql if they don't exist"""
     try:
-        conn = get_db_connection()
+        conn = get_db_connection(retry=False)
         if conn:
             schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
             if os.path.exists(schema_path):
@@ -1962,10 +1962,15 @@ def init_database():
                     cursor.close()
                     print("✓ Database tables initialized")
             close_db_connection(conn)
+        else:
+            print("⚠ Database not available at startup — tables will be created on first successful connection")
     except Exception as e:
-        print(f"Database init note: {e}")
+        print(f"⚠ Database init skipped (non-fatal): {e}")
 
-init_database()
+try:
+    init_database()
+except Exception as e:
+    print(f"⚠ init_database error caught (non-fatal): {e}")
 
 # Start the app
 if __name__ == '__main__':

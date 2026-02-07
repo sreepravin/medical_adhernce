@@ -14,6 +14,13 @@ DATABASE_URL = os.getenv('DATABASE_URL', '')
 if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
     DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
+# Add sslmode=require for cloud databases (Render requires SSL)
+if DATABASE_URL and 'sslmode' not in DATABASE_URL:
+    separator = '&' if '?' in DATABASE_URL else '?'
+    DATABASE_URL = DATABASE_URL + separator + 'sslmode=require'
+
+print(f"[DB CONFIG] DATABASE_URL set: {bool(DATABASE_URL)}, length: {len(DATABASE_URL)}")
+
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'port': int(os.getenv('DB_PORT', 5432)),
