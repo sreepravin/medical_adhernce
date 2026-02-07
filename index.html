@@ -724,17 +724,23 @@
         <div id="prescription" class="tab-content">
             <div class="card">
                 <div class="card-header">➕ Add New Prescription</div>
-                
-                <div class="form-group">
-                    <label>How do you want to enter? </label>
-                    <select id="prescriptionMethod" onchange="updatePrescriptionMethod()">
-                        <option value="manual">Manual Entry</option>
-                        <option value="ocr">Upload Image (OCR)</option>
-                    </select>
+
+                <!-- Image Upload Section -->
+                <div style="background: linear-gradient(135deg, #e8f4fd, #f0e6ff); padding: 16px; border-radius: 10px; margin-bottom: 16px; border: 1px dashed #b8daff;">
+                    <div style="font-weight: bold; margin-bottom: 8px; color: #004085;">📸 Scan Prescription Image (AI-Powered)</div>
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <input type="file" id="prescriptionImage" accept="image/*" onchange="handleImageSelected(this)" style="flex:1; min-width: 200px;">
+                        <button class="btn btn-primary" onclick="analyzeImage()" id="analyzeBtn" style="white-space:nowrap;">🔍 Analyze Image</button>
+                    </div>
+                    <small style="color: #6c757d; margin-top: 6px; display:block;">Upload a prescription photo — AI will auto-fill all fields below</small>
+                    <div id="imagePreview" style="display:none; text-align:center; margin-top: 10px;">
+                        <img id="previewImg" style="max-width:100%; max-height:250px; border-radius:8px; border:2px solid var(--border);">
+                    </div>
+                    <div id="analysisStatus" style="display:none; margin-top: 10px; padding: 10px; border-radius: 8px;"></div>
                 </div>
 
-                <!-- Manual Entry -->
-                <div id="manualEntryForm">
+                <!-- Prescription Form (manual or auto-filled by AI) -->
+                <div id="prescriptionForm">
                     <div class="form-group">
                         <label>Medicine Name *</label>
                         <input type="text" id="medicineName" placeholder="e.g., Metformin" onchange="autoFillMedicineInfo()">
@@ -766,6 +772,7 @@
                             <option>Every 8 hours</option>
                             <option>Every 12 hours</option>
                             <option>At bedtime</option>
+                            <option>As needed</option>
                         </select>
                     </div>
 
@@ -786,6 +793,19 @@
                     </div>
 
                     <div class="form-group">
+                        <label>Route</label>
+                        <select id="route">
+                            <option value="oral">Oral (Tablet/Capsule)</option>
+                            <option value="syrup">Syrup</option>
+                            <option value="injection">Injection</option>
+                            <option value="topical">Topical (Cream/Ointment)</option>
+                            <option value="inhaler">Inhaler</option>
+                            <option value="drops">Drops</option>
+                            <option value="patch">Patch</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
                         <label>Prescribed By</label>
                         <input type="text" id="prescribedBy" placeholder="e.g., Dr. Smith">
                     </div>
@@ -801,23 +821,7 @@
                     </div>
                 </div>
 
-                <!-- OCR Upload -->
-                <div id="ocrUploadForm" style="display:none;">
-                    <div class="form-group">
-                        <label>Upload Prescription Image</label>
-                        <input type="file" id="prescriptionImage" accept="image/*" onchange="previewImage(this)">
-                        <small style="color: var(--text-light);">📸 Upload a clear photo of your prescription</small>
-                    </div>
-                    <div id="imagePreview" style="display:none; text-align:center; margin: 10px 0;">
-                        <img id="previewImg" style="max-width:100%; max-height:300px; border-radius:8px; border:2px solid var(--border);">
-                    </div>
-                    <div id="ocrResultBox" style="display:none; background: var(--bg-light); padding: 15px; border-radius: 8px; margin: 10px 0;">
-                        <div style="font-weight: bold; margin-bottom: 10px;">📋 Extracted Prescription Data:</div>
-                        <div id="ocrResultContent"></div>
-                    </div>
-                </div>
-
-                <button class="btn btn-primary" onclick="handleAddPrescription()">Add Prescription</button>
+                <button class="btn btn-primary" onclick="handleAddPrescription()" style="width:100%; padding: 12px; font-size: 1em;">✅ Add Prescription</button>
             </div>
 
             <div class="card">
@@ -985,7 +989,7 @@
 
 <script>
     // ===== CONFIG =====
-    const API_BASE = 'https://medical-adhernce.onrender.com/api';
+    const API_BASE = window.location.origin + '/api';
     
     let currentUser = null;
     let userMedicalInfo = null;
@@ -1183,9 +1187,7 @@
     }
 
     function updatePrescriptionMethod() {
-        const method = document.getElementById('prescriptionMethod').value;
-        document.getElementById('manualEntryForm').style.display = method === 'manual' ? 'block' : 'none';
-        document.getElementById('ocrUploadForm').style.display = method === 'ocr' ? 'block' : 'none';
+        // No longer needed — unified form
     }
 
     // ===== AUTO-FILL INSTRUCTIONS FROM MEDICATION KB =====
@@ -1221,7 +1223,7 @@
     }
 
     // ===== PRESCRIPTION FUNCTIONS =====
-    function previewImage(input) {
+    function handleImageSelected(input) {
         if (input.files && input.files[0]) {
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -1232,16 +1234,149 @@
         }
     }
 
-    function handleAddPrescription() {
+    function previewImage(input) {
+        handleImageSelected(input);
+    }
+
+    function analyzeImage() {
         if (!currentUser) {
             alert('Please login first');
             return;
         }
+        const fileInput = document.getElementById('prescriptionImage');
+        if (!fileInput.files || !fileInput.files[0]) {
+            alert('❌ Please select a prescription image first');
+            return;
+        }
 
-        const method = document.getElementById('prescriptionMethod').value;
+        const formData = new FormData();
+        formData.append('image', fileInput.files[0]);
+        formData.append('user_id', currentUser.id);
+        formData.append('username', currentUser.username);
+        formData.append('save_to_db', 'false');
 
-        if (method === 'ocr') {
-            handleOCRUpload();
+        const statusDiv = document.getElementById('analysisStatus');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        statusDiv.style.display = 'block';
+        statusDiv.style.background = '#e8f4fd';
+        statusDiv.style.color = '#004085';
+        statusDiv.innerHTML = '🔍 <strong>Analyzing prescription with AI...</strong> Please wait.';
+        analyzeBtn.disabled = true;
+        analyzeBtn.textContent = '⏳ Analyzing...';
+
+        fetch(`${API_BASE}/prescriptions/ocr`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            analyzeBtn.disabled = false;
+            analyzeBtn.textContent = '🔍 Analyze Image';
+
+            if (data.status === 'success') {
+                const rx = data.data;
+                const engineLabel = rx.ocr_engine === 'gemini-ai' ? '🤖 Gemini AI' : '📝 Tesseract OCR';
+                const confidence = Math.round((rx.ocr_confidence || 0) * 100);
+
+                // Auto-fill form fields
+                if (rx.medicine_name) document.getElementById('medicineName').value = rx.medicine_name;
+                if (rx.dosage) document.getElementById('dosage').value = rx.dosage;
+                if (rx.dosage_unit) {
+                    const unitSelect = document.getElementById('dosageUnit');
+                    for (let i = 0; i < unitSelect.options.length; i++) {
+                        if (unitSelect.options[i].value.toLowerCase() === rx.dosage_unit.toLowerCase()) {
+                            unitSelect.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                if (rx.frequency) {
+                    const freqSelect = document.getElementById('frequency');
+                    let matched = false;
+                    for (let i = 0; i < freqSelect.options.length; i++) {
+                        if (freqSelect.options[i].value.toLowerCase() === rx.frequency.toLowerCase()) {
+                            freqSelect.selectedIndex = i;
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if (!matched && rx.frequency) {
+                        // Add as new option if not in list
+                        const opt = document.createElement('option');
+                        opt.value = rx.frequency;
+                        opt.textContent = rx.frequency;
+                        opt.selected = true;
+                        freqSelect.appendChild(opt);
+                    }
+                }
+                if (rx.duration) document.getElementById('duration').value = rx.duration;
+                if (rx.route) {
+                    const routeSelect = document.getElementById('route');
+                    for (let i = 0; i < routeSelect.options.length; i++) {
+                        if (routeSelect.options[i].value.toLowerCase() === rx.route.toLowerCase()) {
+                            routeSelect.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                if (rx.instructions) document.getElementById('instructions').value = rx.instructions;
+                if (rx.special_instructions) document.getElementById('specialInstructions').value = rx.special_instructions;
+
+                // Set today's start date
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('startDate').value = today;
+                if (rx.duration) {
+                    const endDate = new Date();
+                    endDate.setDate(endDate.getDate() + parseInt(rx.duration));
+                    document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+                }
+
+                // Trigger auto-fill for medication KB
+                autoFillMedicineInfo();
+
+                // Show success status
+                let statusHtml = `<strong>✅ Image analyzed successfully!</strong> (${engineLabel}, ${confidence}% confidence)<br>`;
+                statusHtml += `<span style="font-size:0.9em;">Medicine: <strong>${rx.medicine_name || 'Not detected'}</strong>`;
+                if (rx.dosage) statusHtml += ` | ${rx.dosage} ${rx.dosage_unit || 'mg'}`;
+                if (rx.frequency) statusHtml += ` | ${rx.frequency}`;
+                statusHtml += `</span>`;
+
+                if (rx.extraction_notes && rx.extraction_notes.length > 0) {
+                    statusHtml += `<br><span style="font-size:0.85em; color: #856404;">⚠️ ${rx.extraction_notes.join(' | ')}</span>`;
+                }
+                statusHtml += `<br><span style="font-size:0.85em; color: #155724;">📝 Review the form below and click "Add Prescription" to save.</span>`;
+
+                statusDiv.style.background = '#d4edda';
+                statusDiv.style.color = '#155724';
+                statusDiv.innerHTML = statusHtml;
+
+                // Highlight the form to draw attention
+                document.getElementById('prescriptionForm').style.border = '2px solid #28a745';
+                document.getElementById('prescriptionForm').style.borderRadius = '10px';
+                document.getElementById('prescriptionForm').style.padding = '12px';
+                setTimeout(() => {
+                    document.getElementById('prescriptionForm').style.border = 'none';
+                    document.getElementById('prescriptionForm').style.padding = '0';
+                }, 3000);
+
+            } else {
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+                statusDiv.innerHTML = `❌ ${data.message || 'Failed to analyze image'}. Please fill the form manually.`;
+            }
+        })
+        .catch(err => {
+            analyzeBtn.disabled = false;
+            analyzeBtn.textContent = '🔍 Analyze Image';
+            statusDiv.style.background = '#f8d7da';
+            statusDiv.style.color = '#721c24';
+            statusDiv.innerHTML = `❌ Error: ${err.message}. Please fill the form manually.`;
+        });
+    }
+
+    function handleAddPrescription() {
+        if (!currentUser) {
+            alert('Please login first');
             return;
         }
 
@@ -1301,6 +1436,11 @@
                 document.getElementById('prescribedBy').value = '';
                 document.getElementById('instructions').value = '';
                 document.getElementById('specialInstructions').value = '';
+                // Clear image upload & analysis status
+                document.getElementById('prescriptionImage').value = '';
+                document.getElementById('imagePreview').style.display = 'none';
+                document.getElementById('analysisStatus').style.display = 'none';
+                document.getElementById('medicineHint').style.display = 'none';
                 
                 // Initialize tracking and reload data
                 console.log('Initializing tracking for user', currentUser.id);
@@ -1332,87 +1472,6 @@
         .catch(err => {
             console.error('Error adding prescription:', err);
             alert('❌ Error adding prescription: ' + err.message);
-        });
-    }
-
-    // ===== OCR UPLOAD HANDLER =====
-    function handleOCRUpload() {
-        const fileInput = document.getElementById('prescriptionImage');
-        if (!fileInput.files || !fileInput.files[0]) {
-            alert('❌ Please select a prescription image first');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('image', fileInput.files[0]);
-        formData.append('user_id', currentUser.id);
-        formData.append('username', currentUser.username);
-        formData.append('save_to_db', 'true');
-
-        // Show loading state
-        const resultBox = document.getElementById('ocrResultBox');
-        const resultContent = document.getElementById('ocrResultContent');
-        resultBox.style.display = 'block';
-        resultContent.innerHTML = '<p style="text-align:center;">🔍 Analyzing prescription image... Please wait.</p>';
-
-        fetch(`${API_BASE}/prescriptions/ocr`, {
-            method: 'POST',
-            body: formData
-        })
-        .then(r => r.json())
-        .then(data => {
-            console.log('OCR result:', data);
-            if (data.status === 'success') {
-                const rx = data.data;
-                const confidence = Math.round((rx.ocr_confidence || 0) * 100);
-                const confColor = confidence >= 70 ? 'var(--success)' : confidence >= 50 ? 'var(--warning)' : 'var(--danger)';
-
-                let html = `
-                    <div style="margin-bottom: 8px;"><strong>💊 Medicine:</strong> ${rx.medicine_name || '<em>Not detected</em>'}</div>
-                    <div style="margin-bottom: 8px;"><strong>💉 Dosage:</strong> ${rx.dosage || '?'} ${rx.dosage_unit || 'mg'}</div>
-                    <div style="margin-bottom: 8px;"><strong>⏰ Frequency:</strong> ${rx.frequency || 'Not detected'}</div>
-                    <div style="margin-bottom: 8px;"><strong>📅 Duration:</strong> ${rx.duration || '?'} days</div>
-                    <div style="margin-bottom: 8px;"><strong>🔄 Route:</strong> ${rx.route || 'oral'}</div>
-                    ${rx.instructions ? `<div style="margin-bottom: 8px;"><strong>📝 Instructions:</strong> ${rx.instructions}</div>` : ''}
-                    ${rx.special_instructions ? `<div style="margin-bottom: 8px;"><strong>⚠️ Special:</strong> ${rx.special_instructions}</div>` : ''}
-                    <div style="margin-bottom: 8px;"><strong>🎯 OCR Confidence:</strong> <span style="color: ${confColor}; font-weight: bold;">${confidence}%</span></div>
-                `;
-
-                if (rx.extraction_notes && rx.extraction_notes.length > 0) {
-                    html += `<div style="margin-top: 8px; padding: 8px; background: #fff3cd; border-radius: 4px;">
-                        <strong>⚠️ Notes:</strong><br>${rx.extraction_notes.join('<br>')}
-                    </div>`;
-                }
-
-                if (rx.saved) {
-                    html += `<div style="margin-top: 10px; padding: 8px; background: #d4edda; border-radius: 4px; color: #155724;">
-                        ✅ Prescription saved to database (ID: ${rx.prescription_id})
-                    </div>`;
-                }
-
-                if (rx.raw_text) {
-                    html += `<details style="margin-top: 10px;"><summary style="cursor:pointer; color: var(--text-light);">📄 Raw OCR Text</summary>
-                        <pre style="white-space: pre-wrap; font-size: 0.8em; margin-top: 5px; background: #f8f9fa; padding: 8px; border-radius: 4px;">${rx.raw_text}</pre>
-                    </details>`;
-                }
-
-                resultContent.innerHTML = html;
-
-                if (rx.saved) {
-                    // Reset file input
-                    fileInput.value = '';
-                    document.getElementById('imagePreview').style.display = 'none';
-                    alert('✅ Prescription extracted from image and saved successfully!');
-                    loadPrescriptions();
-                    loadDashboard();
-                }
-            } else {
-                resultContent.innerHTML = `<div style="color: var(--danger);">❌ ${data.message || 'Failed to process image'}</div>`;
-            }
-        })
-        .catch(err => {
-            console.error('OCR error:', err);
-            resultContent.innerHTML = `<div style="color: var(--danger);">❌ Error: ${err.message}</div>`;
         });
     }
 

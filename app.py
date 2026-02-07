@@ -356,6 +356,58 @@ def get_medical_info(user_id):
     except Exception as e:
         return error_response(str(e), "Error retrieving medical information")
 
+# ===== GEMINI AI CONFIG =====
+
+@app.route('/api/gemini/status', methods=['GET'])
+def gemini_status():
+    """Check if Gemini AI is configured and available"""
+    return success_response({
+        "gemini_available": ocr.gemini_available,
+        "tesseract_available": ocr.tesseract_available,
+        "api_key_set": bool(os.environ.get('GEMINI_API_KEY', '')),
+    })
+
+@app.route('/api/gemini/set-key', methods=['POST'])
+def set_gemini_key():
+    """Set the Gemini API key at runtime"""
+    try:
+        data = request.json
+        api_key = data.get('api_key', '').strip()
+        if not api_key:
+            return error_response("API key is required", "Validation Error", 400)
+        
+        # Set in environment
+        os.environ['GEMINI_API_KEY'] = api_key
+        
+        # Re-initialize Gemini in the OCR processor
+        try:
+            from google import genai
+            ocr.gemini_client = genai.Client(api_key=api_key)
+            ocr.gemini_available = True
+            
+            # Also save to .env file for persistence
+            env_path = os.path.join(os.path.dirname(__file__), '.env')
+            env_lines = []
+            key_found = False
+            if os.path.exists(env_path):
+                with open(env_path, 'r') as f:
+                    env_lines = f.readlines()
+                for i, line in enumerate(env_lines):
+                    if line.strip().startswith('GEMINI_API_KEY'):
+                        env_lines[i] = f'GEMINI_API_KEY={api_key}\n'
+                        key_found = True
+                        break
+            if not key_found:
+                env_lines.append(f'\n# Google Gemini AI Key\nGEMINI_API_KEY={api_key}\n')
+            with open(env_path, 'w') as f:
+                f.writelines(env_lines)
+            
+            return success_response({"gemini_available": True}, "Gemini AI configured successfully! You can now use AI-powered prescription scanning.")
+        except Exception as e:
+            return error_response(f"Failed to initialize Gemini: {str(e)}", "Configuration Error")
+    except Exception as e:
+        return error_response(str(e), "Error setting API key")
+
 # ===== STEPS 2-3: PRESCRIPTION INPUT & PROCESSING =====
 
 @app.route('/api/prescriptions/ocr', methods=['POST'])
