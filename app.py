@@ -433,6 +433,49 @@ def set_gemini_key():
     except Exception as e:
         return error_response(str(e), "Error setting API key")
 
+@app.route('/api/prescriptions/ocr-test', methods=['POST', 'OPTIONS'])
+def test_prescription_ocr():
+    """Debug endpoint: process image and return raw Gemini response for diagnostics"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+    try:
+        if 'image' not in request.files:
+            return error_response("No image provided", "Validation Error", 400)
+        image_file = request.files['image']
+        image_bytes = image_file.read()
+        image_file.close()
+        
+        from PIL import Image
+        from io import BytesIO
+        img = Image.open(BytesIO(image_bytes))
+        original_size = img.size
+        img = ocr._resize_image(img)
+        resized_size = img.size
+        
+        result = {
+            "gemini_available": ocr.gemini_available,
+            "api_key_set": bool(os.environ.get('GEMINI_API_KEY', '')),
+            "original_image_size": f"{original_size[0]}x{original_size[1]}",
+            "resized_image_size": f"{resized_size[0]}x{resized_size[1]}",
+            "image_bytes": len(image_bytes),
+        }
+        
+        if ocr.gemini_available:
+            try:
+                medicines = ocr.extract_from_image(image_bytes)
+                result["medicines"] = medicines
+                result["raw_response"] = getattr(ocr, '_last_raw_response', 'N/A')
+            except Exception as e:
+                result["error"] = str(e)
+                result["raw_response"] = getattr(ocr, '_last_raw_response', 'N/A')
+        else:
+            result["error"] = "Gemini not available"
+        
+        del image_bytes
+        return success_response(result, "OCR debug info")
+    except Exception as e:
+        return error_response(str(e), "Debug OCR Error")
+
 # ===== STEPS 2-3: PRESCRIPTION INPUT & PROCESSING =====
 
 @app.route('/api/prescriptions/ocr', methods=['POST', 'OPTIONS'])

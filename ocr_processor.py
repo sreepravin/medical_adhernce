@@ -141,7 +141,7 @@ class PrescriptionOCR:
                 print(f"[OCR] ⚠ Gemini lazy-init failed: {e}")
         return False
 
-    def _resize_image(self, image, max_dimension=1024):
+    def _resize_image(self, image, max_dimension=1600):
         """Resize image to prevent OOM on free-tier hosting (512MB RAM)."""
         w, h = image.size
         if max(w, h) > max_dimension:
@@ -296,9 +296,12 @@ Rules:
             
             if response_text is None:
                 print("[OCR] Gemini failed after 2 retries (rate limited)")
-                return None
+                raise Exception("Gemini API rate-limited after retries")
             
             print(f"[OCR] Gemini raw response: {response_text[:800]}")
+            
+            # Store raw response for debugging
+            self._last_raw_response = response_text[:1000]
             
             # Clean response - remove markdown code blocks if present
             response_text = re.sub(r'^```(?:json)?\s*', '', response_text)
@@ -313,7 +316,8 @@ Rules:
                 data = [data]  # Wrap single object in array
             
             if not isinstance(data, list) or len(data) == 0:
-                return None
+                print(f"[OCR] Gemini returned unexpected data type: {type(data)}")
+                raise Exception(f"Gemini returned empty or invalid data. Raw: {response_text[:200]}")
             
             prescriptions = []
             for i, med in enumerate(data):
