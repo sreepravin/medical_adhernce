@@ -1,4 +1,4 @@
-# Email Configuration Guide for Pill Pal
+# Email Configuration Guide for Medical Support
 
 The report export feature is now **ready to send emails**! Follow these steps to configure your email:
 

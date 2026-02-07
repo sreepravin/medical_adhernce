@@ -223,7 +223,7 @@ body {
 
 ### Logo/Branding
 
-Replace "💊 Pill Pal" in the navbar with your branding
+Replace "💊 Medical Support" in the navbar with your branding
 
 ## 🔧 Troubleshooting
 

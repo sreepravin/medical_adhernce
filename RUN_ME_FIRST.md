@@ -183,7 +183,7 @@ python -m http.server 8000
 - [ ] Ran `start.bat`
 - [ ] See "Running on http://127.0.0.1:5000" message
 - [ ] Opened `index.html` in browser
-- [ ] See login page with "Pill Pal" branding
+- [ ] See login page with "Medical Support" branding
 - [ ] Logged in (any username/password)
 - [ ] See dashboard with today's stats
 - [ ] Added a prescription
